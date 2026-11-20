@@ -1,0 +1,2793 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Deny all access unless explicitly permitted below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardened Global Primitives
+    // -------------------------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOptString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isReqString(data, key, minLen, maxLen) {
+      return (key in data) && (data[key] is string) && data[key].size() >= minLen && data[key].size() <= maxLen;
+    }
+
+    function isBootstrapSuperAdminEmail() {
+      return isVerifiedUser()
+        && ('email' in request.auth.token)
+        && (request.auth.token.email is string)
+        && request.auth.token.email.lower() == 'aqbs250@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrapSuperAdminEmail()
+        && (
+          !exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
+          || (
+            ('email' in get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data)
+            && (get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.email is string)
+            && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.email.lower() == 'aqbs250@gmail.com'
+            && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.role == 'super_admin'
+            && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.active == true
+          )
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserPayload(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'email', 'googleName', 'accountStatus',
+          'selectedPortal', 'registrationCompleted', 'personalProfileCompleted',
+          'createdAt', 'lastLoginAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'googleName', 'photoUrl', 'accountStatus',
+          'selectedPortal', 'registrationCompleted', 'personalProfileCompleted',
+          'fullName', 'dateOfBirth', 'age', 'gender', 'governorate',
+          'district', 'address', 'phone', 'phoneVerified', 'phoneVerifiedAt',
+          'avatarUrl', 'avatarPath',
+          'createdAt', 'lastLoginAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isReqString(data, 'email', 3, 254)
+        && isReqString(data, 'googleName', 1, 120)
+        && isOptString(data, 'photoUrl', 1000)
+        && data.accountStatus in ['pending_profile', 'profile_completed', 'pending_review', 'active', 'restricted', 'suspended']
+        && data.selectedPortal in ['none', 'patient', 'doctor', 'lab', 'secretary', 'pharmacy', 'wholesaler']
+        && data.registrationCompleted is bool
+        && data.personalProfileCompleted is bool
+        && isOptString(data, 'fullName', 120)
+        && isOptString(data, 'dateOfBirth', 20)
+        && (!('age' in data) || (data.age is number && data.age >= 0 && data.age <= 130))
+        && (!('gender' in data) || data.gender in ['male', 'female', 'unspecified'])
+        && isOptString(data, 'governorate', 80)
+        && isOptString(data, 'district', 80)
+        && isOptString(data, 'address', 240)
+        && isOptString(data, 'phone', 32)
+        && (!('phoneVerified' in data) || data.phoneVerified is bool)
+        && isOptString(data, 'phoneVerifiedAt', 64)
+        && isOptString(data, 'avatarUrl', 1000)
+        && isOptString(data, 'avatarPath', 500)
+        && data.createdAt is timestamp
+        && data.lastLoginAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPatientProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'dateOfBirth', 'gender', 'governorate',
+          'district', 'address', 'acceptedPolicy', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'fullName', 'dateOfBirth', 'gender', 'governorate',
+          'district', 'address', 'phone', 'phoneVerified', 'avatarUrl', 'avatarPath',
+          'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation',
+          'preferences', 'acceptedPolicy', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isReqString(data, 'fullName', 2, 120)
+        && isReqString(data, 'dateOfBirth', 4, 20)
+        && data.gender in ['male', 'female']
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'address', 2, 240)
+        && isOptString(data, 'phone', 32)
+        && (!('phoneVerified' in data) || data.phoneVerified is bool)
+        && isOptString(data, 'avatarUrl', 1000)
+        && isOptString(data, 'avatarPath', 500)
+        && isOptString(data, 'emergencyContactName', 120)
+        && isOptString(data, 'emergencyContactPhone', 32)
+        && isOptString(data, 'emergencyContactRelation', 60)
+        && (!('preferences' in data) || data.preferences is map)
+        && data.acceptedPolicy == true
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDoctorProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'dateOfBirth', 'gender', 'governorate', 'district',
+          'professionalPhone', 'email', 'degree', 'university', 'specialty',
+          'clinicName', 'workAddress', 'workDaysAndHours',
+          'consultationDurationMinutes', 'consultationFee', 'hourlyAppointmentLimit',
+          'bookingConfirmationMode', 'licenseNumber', 'licensingAuthority',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'fullName', 'dateOfBirth', 'gender', 'avatarUrl', 'avatarPath', 'governorate', 'district',
+          'professionalPhone', 'email', 'degree', 'university', 'specialty', 'subSpecialty',
+          'experienceYears', 'languages', 'clinicName', 'workAddress', 'workDaysAndHours',
+          'consultationDurationMinutes', 'consultationFee', 'hourlyAppointmentLimit',
+          'bookingConfirmationMode', 'licenseNumber', 'licensingAuthority', 'licenseExpiryDate',
+          'verificationDocuments', 'institutionId', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isReqString(data, 'fullName', 2, 120)
+        && isReqString(data, 'dateOfBirth', 4, 20)
+        && data.gender in ['male', 'female']
+        && isOptString(data, 'avatarUrl', 1000)
+        && isOptString(data, 'avatarPath', 500)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'professionalPhone', 6, 32)
+        && isReqString(data, 'email', 3, 254)
+        && isReqString(data, 'degree', 2, 120)
+        && isReqString(data, 'university', 2, 160)
+        && isReqString(data, 'specialty', 2, 120)
+        && isOptString(data, 'subSpecialty', 120)
+        && (!('experienceYears' in data) || (data.experienceYears is number && data.experienceYears >= 0 && data.experienceYears <= 80))
+        && (!('languages' in data) || (data.languages is list && data.languages.size() <= 10 && (data.languages.size() == 0 || data.languages[0] is string)))
+        && isReqString(data, 'clinicName', 2, 160)
+        && isReqString(data, 'workAddress', 2, 240)
+        && isReqString(data, 'workDaysAndHours', 2, 240)
+        && data.consultationDurationMinutes is number && data.consultationDurationMinutes >= 5 && data.consultationDurationMinutes <= 240
+        && data.consultationFee is number && data.consultationFee >= 0 && data.consultationFee <= 10000000
+        && data.hourlyAppointmentLimit is number && data.hourlyAppointmentLimit >= 1 && data.hourlyAppointmentLimit <= 60
+        && data.bookingConfirmationMode in ['manual', 'auto']
+        && isReqString(data, 'licenseNumber', 2, 80)
+        && isReqString(data, 'licensingAuthority', 2, 120)
+        && isOptString(data, 'licenseExpiryDate', 20)
+        && (!('verificationDocuments' in data) || (data.verificationDocuments is list && data.verificationDocuments.size() <= 10 && (data.verificationDocuments.size() == 0 || data.verificationDocuments[0] is map)))
+        && isOptString(data, 'institutionId', 128)
+        && data.status in ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLabProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'managerFullName', 'managerDateOfBirth', 'managerGender', 'professionalPhone',
+          'labNameAr', 'labNameEn', 'directorName', 'governorate', 'district', 'address',
+          'licenseNumber', 'licensingAuthority', 'technicalDirectorName',
+          'labServices', 'workDaysAndHours', 'hourlyBookingLimit', 'bookingConfirmationMode',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'managerFullName', 'managerDateOfBirth', 'managerGender', 'managerAvatarUrl', 'avatarPath', 'professionalPhone',
+          'labNameAr', 'labNameEn', 'directorName', 'governorate', 'district', 'address',
+          'mapLocationUrl', 'latitude', 'longitude',
+          'licenseNumber', 'licensingAuthority', 'licenseExpiryDate', 'licenseDocuments', 'technicalDirectorName',
+          'labServices', 'serviceCatalog', 'workDaysAndHours', 'hourlyBookingLimit', 'bookingConfirmationMode',
+          'homeCollectionEnabled', 'homeCollectionFeeIqd', 'averageRating', 'reviewCount',
+          'institutionId', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isReqString(data, 'managerFullName', 2, 120)
+        && isReqString(data, 'managerDateOfBirth', 4, 20)
+        && data.managerGender in ['male', 'female']
+        && isOptString(data, 'managerAvatarUrl', 1000)
+        && isOptString(data, 'avatarPath', 500)
+        && isReqString(data, 'professionalPhone', 6, 32)
+        && isReqString(data, 'labNameAr', 2, 160)
+        && isReqString(data, 'labNameEn', 2, 160)
+        && isReqString(data, 'directorName', 2, 120)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'address', 2, 240)
+        && isOptString(data, 'mapLocationUrl', 500)
+        && (!('latitude' in data) || data.latitude is number)
+        && (!('longitude' in data) || data.longitude is number)
+        && isReqString(data, 'licenseNumber', 2, 80)
+        && isReqString(data, 'licensingAuthority', 2, 120)
+        && isOptString(data, 'licenseExpiryDate', 24)
+        && (!('licenseDocuments' in data) || (data.licenseDocuments is list && data.licenseDocuments.size() <= 10 && (data.licenseDocuments.size() == 0 || data.licenseDocuments[0] is map)))
+        && isReqString(data, 'technicalDirectorName', 2, 120)
+        && data.labServices is list && data.labServices.size() <= 50 && (data.labServices.size() == 0 || data.labServices[0] is string)
+        && (!('serviceCatalog' in data) || (data.serviceCatalog is list && data.serviceCatalog.size() <= 150))
+        && isReqString(data, 'workDaysAndHours', 2, 240)
+        && data.hourlyBookingLimit is number && data.hourlyBookingLimit >= 1 && data.hourlyBookingLimit <= 200
+        && data.bookingConfirmationMode in ['manual', 'auto']
+        && (!('homeCollectionEnabled' in data) || data.homeCollectionEnabled is bool)
+        && (!('homeCollectionFeeIqd' in data) || (data.homeCollectionFeeIqd is number && data.homeCollectionFeeIqd >= 0))
+        && (!('averageRating' in data) || (data.averageRating is number && data.averageRating >= 0 && data.averageRating <= 5))
+        && (!('reviewCount' in data) || (data.reviewCount is number && data.reviewCount >= 0))
+        && isOptString(data, 'institutionId', 128)
+        && data.status in ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSecretaryProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'dateOfBirth', 'gender', 'governorate', 'district',
+          'phone', 'educationQualification', 'permissionsGranted', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'secretaryCode', 'email', 'fullName', 'dateOfBirth', 'gender', 'avatarUrl', 'governorate', 'district',
+          'phone', 'educationQualification', 'previousExperience', 'bio',
+          'targetInstitutionName', 'invitationCode', 'permissionsGranted',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isOptString(data, 'secretaryCode', 32)
+        && isOptString(data, 'email', 254)
+        && isReqString(data, 'fullName', 2, 120)
+        && isReqString(data, 'dateOfBirth', 4, 20)
+        && data.gender in ['male', 'female']
+        && isOptString(data, 'avatarUrl', 1000)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'phone', 6, 32)
+        && isReqString(data, 'educationQualification', 2, 160)
+        && isOptString(data, 'previousExperience', 400)
+        && isOptString(data, 'bio', 500)
+        && isOptString(data, 'targetInstitutionName', 160)
+        && isOptString(data, 'invitationCode', 64)
+        && data.permissionsGranted is bool
+        && data.status in ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPharmacyProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'pharmacyNameAr', 'pharmacyNameEn', 'ownerFullName',
+          'responsiblePharmacistName', 'pharmacistSyndicateNumber', 'pharmacyLicenseNumber',
+          'licensingAuthority', 'professionalPhone', 'governorate', 'district', 'address',
+          'workingDaysAndHours', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'institutionId', 'pharmacyNameAr', 'pharmacyNameEn', 'ownerFullName',
+          'responsiblePharmacistName', 'pharmacistSyndicateNumber', 'pharmacyLicenseNumber',
+          'licensingAuthority', 'licenseExpiryDate', 'professionalPhone', 'email',
+          'governorate', 'district', 'address', 'mapLocationUrl', 'latitude', 'longitude',
+          'workingDaysAndHours', 'is24Hours', 'deliveryAvailable', 'pickupAvailable',
+          'deliveryZones', 'acceptedPaymentMethods', 'minimumOrderIqd', 'taxNumber',
+          'licenseDocuments', 'logoUrl', 'logoPath', 'coverImageUrl', 'coverImagePath',
+          'taglineAr', 'taglineEn', 'aboutAr', 'aboutEn', 'publicSlug',
+          'promotionalBannerTitleAr', 'promotionalBannerTitleEn', 'promotionalBannerBodyAr',
+          'promotionalBannerBodyEn', 'promotionalBannerImageUrl', 'promotionalBannerImagePath',
+          'marketingApprovalStatus', 'marketingReviewNote', 'featuredStatus',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isOptString(data, 'institutionId', 128)
+        && isReqString(data, 'pharmacyNameAr', 2, 160)
+        && isReqString(data, 'pharmacyNameEn', 2, 160)
+        && isReqString(data, 'ownerFullName', 2, 120)
+        && isReqString(data, 'responsiblePharmacistName', 2, 120)
+        && isReqString(data, 'pharmacistSyndicateNumber', 2, 80)
+        && isReqString(data, 'pharmacyLicenseNumber', 2, 80)
+        && isReqString(data, 'licensingAuthority', 2, 120)
+        && isOptString(data, 'licenseExpiryDate', 24)
+        && isReqString(data, 'professionalPhone', 6, 32)
+        && isOptString(data, 'email', 254)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'address', 2, 240)
+        && isOptString(data, 'mapLocationUrl', 500)
+        && (!('latitude' in data) || data.latitude is number)
+        && (!('longitude' in data) || data.longitude is number)
+        && isReqString(data, 'workingDaysAndHours', 2, 240)
+        && (!('is24Hours' in data) || data.is24Hours is bool)
+        && (!('deliveryAvailable' in data) || data.deliveryAvailable is bool)
+        && (!('pickupAvailable' in data) || data.pickupAvailable is bool)
+        && (!('deliveryZones' in data) || (data.deliveryZones is list && data.deliveryZones.size() <= 50))
+        && (!('acceptedPaymentMethods' in data) || (data.acceptedPaymentMethods is list && data.acceptedPaymentMethods.size() <= 5))
+        && (!('minimumOrderIqd' in data) || (data.minimumOrderIqd is number && data.minimumOrderIqd >= 0))
+        && isOptString(data, 'taxNumber', 80)
+        && (!('licenseDocuments' in data) || (data.licenseDocuments is list && data.licenseDocuments.size() <= 10))
+        && isOptString(data, 'logoUrl', 1000)
+        && isOptString(data, 'logoPath', 400)
+        && isOptString(data, 'coverImageUrl', 1000)
+        && isOptString(data, 'coverImagePath', 400)
+        && isOptString(data, 'taglineAr', 200)
+        && isOptString(data, 'taglineEn', 200)
+        && isOptString(data, 'aboutAr', 1200)
+        && isOptString(data, 'aboutEn', 1200)
+        && isOptString(data, 'publicSlug', 120)
+        && isOptString(data, 'promotionalBannerTitleAr', 200)
+        && isOptString(data, 'promotionalBannerTitleEn', 200)
+        && isOptString(data, 'promotionalBannerBodyAr', 600)
+        && isOptString(data, 'promotionalBannerBodyEn', 600)
+        && isOptString(data, 'promotionalBannerImageUrl', 1000)
+        && isOptString(data, 'promotionalBannerImagePath', 400)
+        && (!('marketingApprovalStatus' in data) || data.marketingApprovalStatus in ['draft', 'pending_review', 'approved', 'rejected'])
+        && isOptString(data, 'marketingReviewNote', 400)
+        && (!('featuredStatus' in data) || data.featuredStatus in ['none', 'requested', 'approved', 'rejected'])
+        && data.status in ['Draft', 'Pending Approval', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes', 'Suspended', 'Deactivated']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWholesalerProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'wholesalerNameAr', 'wholesalerNameEn', 'ownerFullName', 'legalEntityName',
+          'warehouseLicenseNumber', 'healthAuthorityLicenseNumber', 'licensingAuthority',
+          'professionalPhone', 'governorate', 'district', 'warehouseAddress',
+          'workingDaysAndHours', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'institutionId', 'wholesalerNameAr', 'wholesalerNameEn', 'ownerFullName',
+          'legalEntityName', 'warehouseLicenseNumber', 'healthAuthorityLicenseNumber',
+          'licensingAuthority', 'licenseExpiryDate', 'professionalPhone', 'email',
+          'governorate', 'district', 'warehouseAddress', 'mapLocationUrl', 'latitude', 'longitude',
+          'workingDaysAndHours', 'supportedGovernorates', 'minimumOrderIqd',
+          'creditEnabledByDefault', 'licenseDocuments', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isOptString(data, 'institutionId', 128)
+        && isReqString(data, 'wholesalerNameAr', 2, 160)
+        && isReqString(data, 'wholesalerNameEn', 2, 160)
+        && isReqString(data, 'ownerFullName', 2, 120)
+        && isReqString(data, 'legalEntityName', 2, 160)
+        && isReqString(data, 'warehouseLicenseNumber', 2, 80)
+        && isReqString(data, 'healthAuthorityLicenseNumber', 2, 80)
+        && isReqString(data, 'licensingAuthority', 2, 120)
+        && isOptString(data, 'licenseExpiryDate', 24)
+        && isReqString(data, 'professionalPhone', 6, 32)
+        && isOptString(data, 'email', 254)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'warehouseAddress', 2, 240)
+        && isOptString(data, 'mapLocationUrl', 500)
+        && (!('latitude' in data) || data.latitude is number)
+        && (!('longitude' in data) || data.longitude is number)
+        && isReqString(data, 'workingDaysAndHours', 2, 240)
+        && (!('supportedGovernorates' in data) || (data.supportedGovernorates is list && data.supportedGovernorates.size() <= 25))
+        && (!('minimumOrderIqd' in data) || (data.minimumOrderIqd is number && data.minimumOrderIqd >= 0))
+        && (!('creditEnabledByDefault' in data) || data.creditEnabledByDefault is bool)
+        && (!('licenseDocuments' in data) || (data.licenseDocuments is list && data.licenseDocuments.size() <= 10))
+        && data.status in ['Draft', 'Pending Approval', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes', 'Suspended', 'Deactivated']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRegistrationRequest(data, requestId) {
+      return data.keys().hasAll([
+          'requestId', 'requestNumber', 'uid', 'applicantEmail', 'applicantName',
+          'portalType', 'profilePath', 'status', 'activationRule',
+          'acceptedTerms', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'requestId', 'requestNumber', 'uid', 'applicantEmail', 'applicantName',
+          'portalType', 'profilePath', 'institutionId', 'status', 'activationRule',
+          'reviewReason', 'reviewInstructions', 'acceptedTerms',
+          'submittedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.requestId)
+        && data.requestId == requestId
+        && isReqString(data, 'requestNumber', 10, 32)
+        && data.requestNumber.matches('^MDR-[0-9]{8}-[A-Z0-9]{6}$')
+        && isValidId(data.uid)
+        && isReqString(data, 'applicantEmail', 3, 254)
+        && isReqString(data, 'applicantName', 2, 120)
+        && data.portalType in ['patient', 'doctor', 'lab', 'secretary', 'pharmacy', 'wholesaler']
+        && isReqString(data, 'profilePath', 5, 200)
+        && isOptString(data, 'institutionId', 128)
+        && data.status in ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Requires Changes']
+        && data.activationRule in ['patient_instant', 'admin_approval', 'institution_approval']
+        && isOptString(data, 'reviewReason', 500)
+        && isOptString(data, 'reviewInstructions', 800)
+        && data.acceptedTerms == true
+        && (!('submittedAt' in data) || data.submittedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInstitution(data, institutionId) {
+      return data.keys().hasAll([
+          'institutionId', 'ownerUid', 'type', 'nameAr',
+          'governorate', 'district', 'address', 'licenseNumber',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'institutionId', 'ownerUid', 'type', 'nameAr', 'nameEn',
+          'governorate', 'district', 'address', 'licenseNumber',
+          'status', 'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.institutionId)
+        && data.institutionId == institutionId
+        && isValidId(data.ownerUid)
+        && data.type in ['clinic', 'lab', 'pharmacy', 'wholesaler']
+        && isReqString(data, 'nameAr', 2, 160)
+        && isOptString(data, 'nameEn', 160)
+        && isReqString(data, 'governorate', 2, 80)
+        && isReqString(data, 'district', 2, 80)
+        && isReqString(data, 'address', 2, 240)
+        && isReqString(data, 'licenseNumber', 2, 80)
+        && data.status in ['pending_approval', 'active', 'suspended', 'rejected']
+        && (!('subscriptionStatus' in data) || data.subscriptionStatus in ['none', 'trial', 'active', 'expired'])
+        && isOptString(data, 'subscriptionPlan', 80)
+        && isOptString(data, 'subscriptionExpiresAt', 32)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInstitutionMember(data, memberId) {
+      return data.keys().hasAll([
+          'memberId', 'institutionId', 'uid', 'role', 'status', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'memberId', 'institutionId', 'uid', 'role', 'status', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.memberId)
+        && data.memberId == memberId
+        && isValidId(data.institutionId)
+        && isValidId(data.uid)
+        && data.role in ['owner', 'secretary', 'staff']
+        && data.status in ['pending_approval', 'active', 'revoked']
+        && data.permissions is list && data.permissions.size() <= 15 && (data.permissions.size() == 0 || data.permissions[0] is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRole(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'role', 'active', 'grantedBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isReqString(data, 'email', 3, 254)
+        && data.role == 'super_admin'
+        && data.active is bool
+        && isOptString(data, 'grantedBy', 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data, logId) {
+      return data.keys().hasAll(['logId', 'actorUid', 'actorEmail', 'action', 'targetCollection', 'targetId', 'details', 'createdAt'])
+        && data.keys().hasOnly(['logId', 'actorUid', 'actorEmail', 'action', 'targetCollection', 'targetId', 'details', 'createdAt'])
+        && isValidId(data.logId)
+        && data.logId == logId
+        && isValidId(data.actorUid)
+        && isReqString(data, 'actorEmail', 3, 254)
+        && isReqString(data, 'action', 2, 120)
+        && isReqString(data, 'targetCollection', 2, 80)
+        && isReqString(data, 'targetId', 1, 128)
+        && isReqString(data, 'details', 1, 600)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAdminMessage(data, messageId) {
+      return data.keys().hasAll([
+          'messageId', 'senderName', 'senderEmail', 'subject', 'body',
+          'category', 'status', 'isRead', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'messageId', 'senderName', 'senderEmail', 'subject', 'body',
+          'category', 'status', 'isRead', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.messageId)
+        && data.messageId == messageId
+        && isReqString(data, 'senderName', 1, 120)
+        && isReqString(data, 'senderEmail', 3, 254)
+        && isReqString(data, 'subject', 2, 200)
+        && isReqString(data, 'body', 2, 2000)
+        && data.category in ['system', 'inquiry', 'institution_notice', 'compliance']
+        && data.status in ['new', 'read', 'replied', 'archived']
+        && data.isRead is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    match /users/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidUserPayload(incoming(), uid)
+        && incoming().accountStatus in ['pending_profile', 'profile_completed']
+        && incoming().selectedPortal == 'none'
+        && incoming().registrationCompleted == false
+        && incoming().createdAt == request.time
+        && incoming().lastLoginAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidUserPayload(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && (
+              incoming().accountStatus == existing().accountStatus
+              || (incoming().selectedPortal == 'patient' && incoming().accountStatus in ['pending_profile', 'profile_completed', 'active'])
+              || (incoming().selectedPortal != 'patient' && incoming().accountStatus in ['pending_profile', 'profile_completed', 'pending_review'])
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'email', 'googleName', 'photoUrl', 'accountStatus',
+              'selectedPortal', 'registrationCompleted', 'personalProfileCompleted',
+              'fullName', 'dateOfBirth', 'age', 'gender', 'governorate',
+              'district', 'address', 'phone', 'avatarUrl', 'avatarPath', 'lastLoginAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /patient_profiles/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidPatientProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidPatientProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'dateOfBirth', 'gender', 'governorate', 'district',
+              'address', 'phone', 'avatarUrl', 'avatarPath',
+              'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation',
+              'preferences', 'acceptedPolicy', 'status', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /doctor_profiles/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidDoctorProfile(incoming(), uid)
+        && incoming().status in ['Draft', 'Submitted']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidDoctorProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && existing().status in ['Draft', 'Requires Changes', 'Rejected']
+            && incoming().status in ['Draft', 'Submitted']
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'dateOfBirth', 'gender', 'avatarUrl', 'avatarPath', 'governorate', 'district',
+              'professionalPhone', 'email', 'degree', 'university', 'specialty', 'subSpecialty',
+              'experienceYears', 'languages', 'clinicName', 'workAddress', 'workDaysAndHours',
+              'consultationDurationMinutes', 'consultationFee', 'hourlyAppointmentLimit',
+              'bookingConfirmationMode', 'licenseNumber', 'licensingAuthority', 'licenseExpiryDate',
+              'verificationDocuments', 'institutionId', 'status', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /lab_profiles/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidLabProfile(incoming(), uid)
+        && incoming().status in ['Draft', 'Submitted']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidLabProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && existing().status in ['Draft', 'Requires Changes', 'Rejected']
+            && incoming().status in ['Draft', 'Submitted']
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'managerFullName', 'managerDateOfBirth', 'managerGender', 'managerAvatarUrl', 'avatarPath', 'professionalPhone',
+              'labNameAr', 'labNameEn', 'directorName', 'governorate', 'district', 'address',
+              'mapLocationUrl', 'latitude', 'longitude',
+              'licenseNumber', 'licensingAuthority', 'licenseExpiryDate', 'licenseDocuments', 'technicalDirectorName',
+              'labServices', 'workDaysAndHours', 'hourlyBookingLimit', 'bookingConfirmationMode',
+              'institutionId', 'status', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /secretary_profiles/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidSecretaryProfile(incoming(), uid)
+        && incoming().permissionsGranted == false
+        && incoming().status in ['Draft', 'Submitted', 'Approved']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidSecretaryProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && incoming().permissionsGranted == existing().permissionsGranted
+            && incoming().status == existing().status
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'dateOfBirth', 'gender', 'avatarUrl', 'governorate', 'district',
+              'phone', 'educationQualification', 'previousExperience', 'bio',
+              'targetInstitutionName', 'invitationCode', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /pharmacy_profiles/{uid} {
+      allow get: if isValidId(uid) && (
+        isAdmin()
+        || (isSignedIn() && isOwner(uid))
+        || (resource != null && resource.data.status == 'Approved')
+      );
+      allow list: if isAdmin() || (resource.data.status == 'Approved');
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidPharmacyProfile(incoming(), uid)
+        && incoming().status in ['Draft', 'Submitted']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidPharmacyProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && existing().status in ['Draft', 'Requires Changes', 'Rejected']
+            && incoming().status in ['Draft', 'Submitted']
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'pharmacyNameAr', 'pharmacyNameEn', 'ownerFullName',
+              'responsiblePharmacistName', 'pharmacistSyndicateNumber', 'pharmacyLicenseNumber',
+              'licensingAuthority', 'licenseExpiryDate', 'professionalPhone', 'email',
+              'governorate', 'district', 'address', 'mapLocationUrl', 'latitude', 'longitude',
+              'workingDaysAndHours', 'is24Hours', 'deliveryAvailable', 'pickupAvailable',
+              'licenseDocuments', 'institutionId', 'status', 'updatedAt'
+            ])
+          )
+          || (
+            isOwner(uid)
+            && existing().status == 'Approved'
+            && incoming().status == existing().status
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'pharmacyNameAr', 'pharmacyNameEn', 'professionalPhone', 'governorate', 'district',
+              'address', 'mapLocationUrl', 'latitude', 'longitude', 'workingDaysAndHours',
+              'is24Hours', 'deliveryAvailable', 'pickupAvailable', 'deliveryZones',
+              'acceptedPaymentMethods', 'minimumOrderIqd', 'taxNumber',
+              'logoUrl', 'logoPath', 'coverImageUrl', 'coverImagePath',
+              'taglineAr', 'taglineEn', 'aboutAr', 'aboutEn', 'publicSlug',
+              'promotionalBannerTitleAr', 'promotionalBannerTitleEn', 'promotionalBannerBodyAr',
+              'promotionalBannerBodyEn', 'promotionalBannerImageUrl', 'promotionalBannerImagePath',
+              'marketingApprovalStatus', 'featuredStatus', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /wholesaler_profiles/{uid} {
+      allow get: if isValidId(uid) && (
+        isAdmin()
+        || (isSignedIn() && isOwner(uid))
+        || (isVerifiedUser() && resource != null && resource.data.status == 'Approved')
+      );
+      allow list: if isAdmin() || (isVerifiedUser() && resource.data.status == 'Approved');
+      allow create: if isVerifiedUser()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidWholesalerProfile(incoming(), uid)
+        && incoming().status in ['Draft', 'Submitted']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidWholesalerProfile(incoming(), uid)
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && existing().status in ['Draft', 'Requires Changes', 'Rejected']
+            && incoming().status in ['Draft', 'Submitted']
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'wholesalerNameAr', 'wholesalerNameEn', 'ownerFullName', 'legalEntityName',
+              'warehouseLicenseNumber', 'healthAuthorityLicenseNumber', 'licensingAuthority',
+              'licenseExpiryDate', 'professionalPhone', 'email', 'governorate', 'district',
+              'warehouseAddress', 'mapLocationUrl', 'latitude', 'longitude',
+              'workingDaysAndHours', 'supportedGovernorates', 'minimumOrderIqd',
+              'licenseDocuments', 'institutionId', 'status', 'updatedAt'
+            ])
+          )
+          || (
+            isOwner(uid)
+            && existing().status == 'Approved'
+            && incoming().status == existing().status
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'professionalPhone', 'warehouseAddress', 'mapLocationUrl', 'latitude', 'longitude',
+              'workingDaysAndHours', 'supportedGovernorates', 'minimumOrderIqd',
+              'creditEnabledByDefault', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /registration_requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (resource == null || existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(requestId)
+        && isValidRegistrationRequest(incoming(), requestId)
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (!('reviewReason' in incoming()) || incoming().reviewReason == '')
+        && (!('reviewInstructions' in incoming()) || incoming().reviewInstructions == '')
+        && (
+          (incoming().portalType == 'patient' && incoming().status == 'Approved' && incoming().activationRule == 'patient_instant')
+          || (incoming().portalType in ['doctor', 'lab', 'pharmacy', 'wholesaler'] && incoming().status == 'Submitted' && incoming().activationRule == 'admin_approval')
+          || (incoming().portalType == 'secretary' && incoming().status == 'Submitted' && incoming().activationRule == 'institution_approval')
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(requestId)
+        && isValidRegistrationRequest(incoming(), requestId)
+        && incoming().uid == existing().uid
+        && incoming().requestId == existing().requestId
+        && incoming().requestNumber == existing().requestNumber
+        && incoming().portalType == existing().portalType
+        && incoming().activationRule == existing().activationRule
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'reviewReason', 'reviewInstructions', 'updatedAt'
+            ])
+          )
+          || (
+            existing().uid == request.auth.uid
+            && existing().status in ['Draft', 'Requires Changes']
+            && incoming().status == 'Submitted'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'acceptedTerms', 'submittedAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /institutions/{institutionId} {
+      allow get: if isSignedIn() && isValidId(institutionId) && (resource == null || existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(institutionId)
+        && isValidInstitution(incoming(), institutionId)
+        && incoming().ownerUid == request.auth.uid
+        && incoming().status == 'pending_approval'
+        && !('subscriptionStatus' in incoming())
+        && !('subscriptionPlan' in incoming())
+        && !('subscriptionExpiresAt' in incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(institutionId)
+        && isValidInstitution(incoming(), institutionId)
+        && incoming().institutionId == existing().institutionId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().ownerUid == request.auth.uid
+            && existing().status in ['pending_approval', 'rejected']
+            && incoming().status == 'pending_approval'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'nameAr', 'nameEn', 'governorate', 'district', 'address', 'licenseNumber', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /institution_members/{memberId} {
+      allow get: if isSignedIn() && isValidId(memberId) && (resource == null || existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(memberId)
+        && isValidInstitutionMember(incoming(), memberId)
+        && incoming().uid == request.auth.uid
+        && incoming().status == 'pending_approval'
+        && (
+          (incoming().role == 'owner')
+          || (incoming().role == 'secretary' && incoming().permissions.size() == 0)
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(memberId)
+        && isValidInstitutionMember(incoming(), memberId)
+        && isAdmin()
+        && incoming().memberId == existing().memberId
+        && incoming().institutionId == existing().institutionId
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /admin_roles/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      // Only the verified sole Super Admin email may bootstrap or update their own active role doc
+      allow create: if isBootstrapSuperAdminEmail()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidAdminRole(incoming(), uid)
+        && incoming().email.lower() == 'aqbs250@gmail.com'
+        && incoming().active == true
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isBootstrapSuperAdminEmail()
+        && isOwner(uid)
+        && isValidId(uid)
+        && isValidAdminRole(incoming(), uid)
+        && incoming().email.lower() == 'aqbs250@gmail.com'
+        && incoming().active == true
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /audit_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidAuditLog(incoming(), logId)
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /admin_messages/{messageId} {
+      allow get: if isAdmin() && isValidId(messageId);
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && isValidId(messageId)
+        && isValidAdminMessage(incoming(), messageId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(messageId)
+        && isValidAdminMessage(incoming(), messageId)
+        && incoming().messageId == existing().messageId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'isRead', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // MEDORA DOCTOR Clinical & Directory Rules
+    // -------------------------------------------------------------------------
+    function isApprovedDoctorOwner(doctorUid) {
+      return isVerifiedUser()
+        && isValidId(doctorUid)
+        && request.auth.uid == doctorUid
+        && exists(/databases/$(database)/documents/doctor_profiles/$(doctorUid))
+        && get(/databases/$(database)/documents/doctor_profiles/$(doctorUid)).data.status == 'Approved';
+    }
+
+    match /doctor_public_cards/{doctorUid} {
+      allow get, list: if true;
+      allow create, update: if isAdmin() || isApprovedDoctorOwner(doctorUid);
+      allow delete: if false;
+    }
+
+    match /appointments/{appointmentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+        || resource.data.patientUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(appointmentId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /appointment_slots/{slotKey} {
+      allow get, list: if isVerifiedUser();
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(slotKey)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /doctor_patients/{patientRecordId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(patientRecordId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /patient_visits/{visitId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(visitId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /prescriptions/{prescriptionId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(prescriptionId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /diagnostic_orders/{orderId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow delete: if false;
+    }
+
+    match /doctor_conversations/{conversationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+        || resource.data.patientUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(conversationId)
+        && (isApprovedDoctorOwner(incoming().doctorUid) || incoming().patientUid == request.auth.uid)
+      );
+      allow delete: if false;
+    }
+
+    match /doctor_messages/{messageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.senderUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && (isApprovedDoctorOwner(incoming().doctorUid) || incoming().senderUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /doctor_audit_logs/{logId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedDoctorOwner(resource.data.doctorUid)
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(logId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+      );
+      allow update, delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // MEDORA PATIENT & Platform Ads / Reviews / Feedback Rules
+    // -------------------------------------------------------------------------
+    function isValidMedoraAd(data, adId) {
+      return data.adId == adId
+        && data.source == 'super_admin'
+        && data.entityType in ['doctor', 'lab', 'pharmacy', 'wholesaler', 'radiology_info', 'platform_service']
+        && data.status in ['draft', 'published', 'paused', 'expired']
+        && data.active is bool
+        && data.imageUrl is string
+        && data.imageUrl.size() > 0
+        && (!('title' in data) || (data.title is string && data.title.size() <= 140))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 600))
+        && (!('targetPortals' in data) || (data.targetPortals is list && data.targetPortals.size() <= 6))
+        && (!('destinationTarget' in data) || (data.destinationTarget is string && data.destinationTarget.size() <= 240))
+        && (!('ctaLabelAr' in data) || (data.ctaLabelAr is string && data.ctaLabelAr.size() <= 80))
+        && (!('ctaLabelEn' in data) || (data.ctaLabelEn is string && data.ctaLabelEn.size() <= 80));
+    }
+
+    match /medora_ads/{adId} {
+      allow get: if isAdmin() || (isValidId(adId) && (
+        resource == null
+        || (resource.data.source == 'super_admin'
+          && resource.data.status == 'published'
+          && resource.data.active == true)
+      ));
+      allow list: if isAdmin() || (
+        resource.data.source == 'super_admin'
+        && resource.data.status == 'published'
+        && resource.data.active == true
+      );
+      allow create, update: if isAdmin() && isValidId(adId) && isValidMedoraAd(incoming(), adId);
+      allow delete: if isAdmin() && isValidId(adId);
+    }
+
+    match /medora_ad_assets/{assetId} {
+      allow get: if isValidId(assetId);
+      allow list, create, update, delete: if isAdmin() && isValidId(assetId);
+    }
+
+    match /ad_events/{eventId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(eventId)
+        && incoming().eventId == eventId
+        && incoming().adId is string
+        && incoming().adId.size() > 0
+        && incoming().adId.size() <= 128
+        && incoming().eventType in ['impression', 'click']
+        && incoming().portal in ['entry', 'patient', 'pharmacy', 'lab', 'doctor', 'wholesaler'];
+      allow update, delete: if false;
+    }
+
+    match /patient_favorites/{favoriteId} {
+      allow get: if isVerifiedUser() && isValidId(favoriteId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isVerifiedUser()
+        && isValidId(favoriteId)
+        && incoming().patientUid == request.auth.uid
+        && isValidId(incoming().doctorUid);
+      allow update: if false;
+      allow delete: if isVerifiedUser()
+        && isValidId(favoriteId)
+        && (existing().patientUid == request.auth.uid || isAdmin());
+    }
+
+    match /patient_medical_files/{fileId} {
+      allow get: if isVerifiedUser() && isValidId(fileId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isVerifiedUser()
+        && isValidId(fileId)
+        && incoming().patientUid == request.auth.uid;
+      allow update, delete: if isVerifiedUser()
+        && isValidId(fileId)
+        && (existing().patientUid == request.auth.uid || isAdmin());
+    }
+
+    match /medical_record_shares/{shareId} {
+      allow get: if isVerifiedUser() && isValidId(shareId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isVerifiedUser()
+        && isValidId(shareId)
+        && incoming().patientUid == request.auth.uid
+        && isValidId(incoming().doctorUid);
+      allow update, delete: if isVerifiedUser()
+        && isValidId(shareId)
+        && (existing().patientUid == request.auth.uid || isAdmin());
+    }
+
+    match /lab_bookings/{bookingId} {
+      allow get: if isVerifiedUser() && isValidId(bookingId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.facilityUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || resource.data.facilityUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isVerifiedUser()
+        && isValidId(bookingId)
+        && incoming().patientUid == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isValidId(bookingId)
+        && (existing().patientUid == request.auth.uid || existing().facilityUid == request.auth.uid || isAdmin());
+      allow delete: if false;
+    }
+
+    match /patient_notifications/{notificationId} {
+      allow get: if isVerifiedUser() && isValidId(notificationId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidId(incoming().patientUid)
+        && incoming().isRead == false
+        && isReqString(incoming(), 'title', 1, 200)
+        && isReqString(incoming(), 'body', 1, 600)
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && (
+          isAdmin()
+          || (
+            existing().patientUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /doctor_notifications/{notificationId} {
+      allow get: if isVerifiedUser() && isValidId(notificationId) && (
+        resource == null
+        || resource.data.doctorUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.doctorUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidId(incoming().doctorUid)
+        && incoming().isRead == false
+        && isReqString(incoming(), 'title', 1, 200)
+        && isReqString(incoming(), 'body', 1, 600)
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && (
+          isAdmin()
+          || (
+            existing().doctorUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt'])
+            && incoming().isRead is bool
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /admin_notifications/{notificationId} {
+      allow get: if isAdmin() && isValidId(notificationId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && incoming().isRead == false
+        && isReqString(incoming(), 'title', 1, 200)
+        && isReqString(incoming(), 'body', 1, 600)
+      );
+      allow update: if isAdmin()
+        && isValidId(notificationId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt'])
+        && incoming().isRead is bool;
+      allow delete: if false;
+    }
+
+    match /notification_preferences/{uid} {
+      allow get: if isVerifiedUser() && isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(uid)
+        && isOwner(uid)
+        && incoming().uid == uid
+      );
+      allow delete: if false;
+    }
+
+    match /doctor_reviews/{reviewId} {
+      allow get, list: if isAdmin()
+        || resource.data.status == 'approved'
+        || (isVerifiedUser() && resource.data.patientUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(reviewId)
+        && incoming().patientUid == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().rating is number
+        && incoming().rating >= 1
+        && incoming().rating <= 5;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /patient_feedback/{feedbackId} {
+      allow get: if isVerifiedUser() && isValidId(feedbackId) && (
+        resource == null
+        || resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.patientUid == request.auth.uid
+        || isAdmin()
+      );
+      allow create: if isVerifiedUser()
+        && isValidId(feedbackId)
+        && incoming().patientUid == request.auth.uid
+        && incoming().status == 'new';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /medora_media_assets/{assetId} {
+      allow get: if isValidId(assetId) && (
+        resource == null
+        || resource.data.visibility == 'public'
+        || isAdmin()
+        || (isVerifiedUser() && resource.data.ownerUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.targetUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.patientUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.doctorUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.labUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.pharmacyUid == request.auth.uid)
+        || (isVerifiedUser() && resource.data.wholesalerUid == request.auth.uid)
+      );
+      allow list: if isAdmin() || (isVerifiedUser() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(assetId)
+        && incoming().ownerUid == request.auth.uid
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(assetId)
+        && existing().ownerUid == request.auth.uid
+        && incoming().ownerUid == existing().ownerUid
+      );
+      allow delete: if isAdmin() || (isVerifiedUser() && existing().ownerUid == request.auth.uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // MEDORA LAB (Multi-Tenant LIMS) Isolation & RBAC Rules
+    // -------------------------------------------------------------------------
+    function isApprovedLabOwner(labUid) {
+      return isVerifiedUser()
+        && isValidId(labUid)
+        && request.auth.uid == labUid
+        && exists(/databases/$(database)/documents/lab_profiles/$(labUid))
+        && get(/databases/$(database)/documents/lab_profiles/$(labUid)).data.status == 'Approved';
+    }
+
+    match /medora_central_lab_tests/{centralTestId} {
+      allow get, list: if isVerifiedUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /lab_staff/{staffId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.labUid == request.auth.uid
+        || resource.data.uid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(staffId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_patients/{patientRecordId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || resource.data.linkedPatientUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(patientRecordId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_tests/{testId} {
+      allow get, list: if resource.data.isActive == true
+        || isAdmin()
+        || (isVerifiedUser() && resource.data.labUid == request.auth.uid);
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(testId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_offers/{offerId} {
+      allow get, list: if resource.data.isActive == true
+        || isAdmin()
+        || (isVerifiedUser() && resource.data.labUid == request.auth.uid);
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(offerId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_orders/{orderId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || resource.data.linkedPatientUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_samples/{sampleId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(sampleId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_home_collections/{requestId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || resource.data.patientUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(requestId)
+        && (incoming().patientUid == request.auth.uid || isApprovedLabOwner(incoming().labUid))
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(requestId)
+        && (isApprovedLabOwner(existing().labUid) || existing().patientUid == request.auth.uid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_results/{resultId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || (resource.data.linkedPatientUid == request.auth.uid && resource.data.publishedToPatient == true)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(resultId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_invoices/{invoiceId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(invoiceId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_payments/{paymentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(paymentId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /lab_inventory_items/{itemId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(itemId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_test_recipes/{recipeId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(recipeId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_stock_movements/{movementId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(movementId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /lab_suppliers/{supplierId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(supplierId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_purchase_orders/{poId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(poId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_reviews/{reviewId} {
+      allow get, list: if isAdmin()
+        || resource.data.status == 'approved'
+        || (isVerifiedUser() && (resource.data.labUid == request.auth.uid || resource.data.patientUid == request.auth.uid));
+      allow create: if isVerifiedUser()
+        && isValidId(reviewId)
+        && incoming().patientUid == request.auth.uid
+        && incoming().rating is number
+        && incoming().rating >= 1
+        && incoming().rating <= 5;
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(reviewId)
+        && isApprovedLabOwner(existing().labUid)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['labReply', 'repliedByName', 'repliedAt', 'updatedAt'])
+      );
+      allow delete: if false;
+    }
+
+    match /lab_notifications/{notificationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.labUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isApprovedLabOwner(existing().labUid)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+      );
+      allow delete: if false;
+    }
+
+    match /lab_conversations/{conversationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || resource.data.patientUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(conversationId)
+        && (isApprovedLabOwner(incoming().labUid) || incoming().patientUid == request.auth.uid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_messages/{messageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.senderUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && (isApprovedLabOwner(incoming().labUid) || incoming().senderUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /lab_admin_messages/{threadMessageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(threadMessageId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow delete: if false;
+    }
+
+    match /lab_audit_logs/{logId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || isApprovedLabOwner(resource.data.labUid)
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(logId)
+        && isApprovedLabOwner(incoming().labUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /haneen_knowledge_sources/{sourceId} {
+      allow get, list: if isAdmin() || (isVerifiedUser() && resource.data.enabled == true);
+      allow create, update: if isAdmin() && isValidId(sourceId);
+      allow delete: if false;
+    }
+
+    match /haneen_settings/{settingId} {
+      allow get, list: if isAdmin() || isVerifiedUser();
+      allow create, update: if isAdmin() && isValidId(settingId);
+      allow delete: if false;
+    }
+
+    match /haneen_telemetry/{docId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /haneen_conversations/{conversationId} {
+      allow get, list: if isVerifiedUser()
+        && resource.data.patientUid == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(conversationId)
+        && incoming().patientUid == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isValidId(conversationId)
+        && existing().patientUid == request.auth.uid
+        && incoming().patientUid == request.auth.uid;
+      allow delete: if isVerifiedUser()
+        && existing().patientUid == request.auth.uid;
+    }
+
+    match /haneen_messages/{messageId} {
+      allow get, list: if isVerifiedUser()
+        && resource.data.patientUid == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(messageId)
+        && incoming().patientUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isVerifiedUser()
+        && existing().patientUid == request.auth.uid;
+    }
+
+    // -------------------------------------------------------------------------
+    // Independent Multi-Employer Secretary Hiring & Portal Isolation Rules
+    // -------------------------------------------------------------------------
+    function isValidSecretaryInvitation(data, invitationId) {
+      return data.keys().hasAll([
+          'invitationId', 'employerType', 'employerUid', 'employerInstitutionId',
+          'employerName', 'invitedByUid', 'secretaryUid', 'secretaryEmail',
+          'proposedPermissions', 'status', 'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'invitationId', 'employerType', 'employerUid', 'employerInstitutionId',
+          'employerName', 'employerEmail', 'invitedByUid', 'invitedByName',
+          'secretaryUid', 'secretaryCode', 'secretaryEmail', 'secretaryName',
+          'message', 'proposedPermissions', 'initialTasks', 'status',
+          'expiresAt', 'respondedAt', 'revokedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.invitationId)
+        && data.invitationId == invitationId
+        && data.employerType in ['doctor', 'lab', 'pharmacy']
+        && isValidId(data.employerUid)
+        && isValidId(data.employerInstitutionId)
+        && isReqString(data, 'employerName', 1, 160)
+        && isOptString(data, 'employerEmail', 254)
+        && isValidId(data.invitedByUid)
+        && isOptString(data, 'invitedByName', 120)
+        && isValidId(data.secretaryUid)
+        && isOptString(data, 'secretaryCode', 32)
+        && isReqString(data, 'secretaryEmail', 3, 254)
+        && isOptString(data, 'secretaryName', 120)
+        && isOptString(data, 'message', 1000)
+        && data.proposedPermissions is list
+        && data.proposedPermissions.size() <= 10
+        && (!('initialTasks' in data) || (data.initialTasks is list && data.initialTasks.size() <= 15))
+        && data.status in ['Pending', 'Accepted', 'Rejected', 'Expired', 'Revoked']
+        && isReqString(data, 'expiresAt', 8, 40)
+        && isOptString(data, 'respondedAt', 40)
+        && isOptString(data, 'revokedAt', 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSecretaryEmployment(data, employmentId) {
+      return data.keys().hasAll([
+          'employmentId', 'invitationId', 'employerType', 'employerUid',
+          'employerInstitutionId', 'employerName', 'secretaryUid', 'secretaryEmail',
+          'status', 'permissions', 'assignedByUid', 'acceptedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'employmentId', 'invitationId', 'employerType', 'employerUid',
+          'employerInstitutionId', 'employerName', 'employerSubtitle',
+          'secretaryUid', 'secretaryCode', 'secretaryEmail', 'secretaryName', 'secretaryPhone',
+          'status', 'permissions', 'assignedByUid', 'acceptedAt',
+          'suspendedAt', 'terminatedAt', 'statusReason', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.employmentId)
+        && data.employmentId == employmentId
+        && isValidId(data.invitationId)
+        && data.employerType in ['doctor', 'lab', 'pharmacy']
+        && isValidId(data.employerUid)
+        && isValidId(data.employerInstitutionId)
+        && isReqString(data, 'employerName', 1, 160)
+        && isOptString(data, 'employerSubtitle', 160)
+        && isValidId(data.secretaryUid)
+        && isOptString(data, 'secretaryCode', 32)
+        && isReqString(data, 'secretaryEmail', 3, 254)
+        && isOptString(data, 'secretaryName', 120)
+        && isOptString(data, 'secretaryPhone', 32)
+        && data.status in ['Active', 'Suspended', 'Terminated']
+        && data.permissions is list
+        && data.permissions.size() <= 10
+        && isValidId(data.assignedByUid)
+        && isReqString(data, 'acceptedAt', 8, 40)
+        && isOptString(data, 'suspendedAt', 40)
+        && isOptString(data, 'terminatedAt', 40)
+        && isOptString(data, 'statusReason', 300)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSecretaryTask(data, taskId) {
+      return data.keys().hasAll([
+          'taskId', 'employmentId', 'employerType', 'employerUid',
+          'secretaryUid', 'title', 'priority', 'status', 'createdByUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'taskId', 'employmentId', 'employerType', 'employerUid', 'employerName',
+          'secretaryUid', 'secretaryName', 'title', 'description', 'priority',
+          'dueDate', 'status', 'createdByUid', 'createdByName', 'completedAt',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.taskId)
+        && data.taskId == taskId
+        && isValidId(data.employmentId)
+        && data.employerType in ['doctor', 'lab', 'pharmacy']
+        && isValidId(data.employerUid)
+        && isOptString(data, 'employerName', 160)
+        && isValidId(data.secretaryUid)
+        && isOptString(data, 'secretaryName', 120)
+        && isReqString(data, 'title', 1, 180)
+        && isOptString(data, 'description', 1000)
+        && data.priority in ['low', 'medium', 'high']
+        && isOptString(data, 'dueDate', 32)
+        && data.status in ['todo', 'in_progress', 'done']
+        && isValidId(data.createdByUid)
+        && isOptString(data, 'createdByName', 120)
+        && isOptString(data, 'completedAt', 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSecretaryNotification(data, notificationId) {
+      return data.keys().hasAll(['notificationId', 'secretaryUid', 'type', 'title', 'body', 'isRead', 'createdAt'])
+        && data.keys().hasOnly([
+          'notificationId', 'secretaryUid', 'type', 'title', 'body',
+          'relatedId', 'employerType', 'employerName', 'isRead', 'createdAt'
+        ])
+        && isValidId(data.notificationId)
+        && data.notificationId == notificationId
+        && isValidId(data.secretaryUid)
+        && data.type in [
+          'invitation_received', 'invitation_revoked', 'permissions_updated',
+          'employment_suspended', 'employment_reactivated', 'employment_terminated', 'task_assigned'
+        ]
+        && isReqString(data, 'title', 1, 200)
+        && isReqString(data, 'body', 1, 600)
+        && isOptString(data, 'relatedId', 128)
+        && (!('employerType' in data) || data.employerType in ['doctor', 'lab', 'pharmacy'])
+        && isOptString(data, 'employerName', 160)
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSecretaryActivityLog(data, logId) {
+      return data.keys().hasAll([
+          'logId', 'employerUid', 'employerType', 'secretaryUid',
+          'actorUid', 'actorRole', 'action', 'details', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'logId', 'employerUid', 'employerType', 'employerName',
+          'employmentId', 'invitationId', 'secretaryUid', 'secretaryName',
+          'actorUid', 'actorName', 'actorRole', 'action', 'details', 'createdAt'
+        ])
+        && isValidId(data.logId)
+        && data.logId == logId
+        && isValidId(data.employerUid)
+        && data.employerType in ['doctor', 'lab', 'pharmacy']
+        && isOptString(data, 'employerName', 160)
+        && isOptString(data, 'employmentId', 128)
+        && isOptString(data, 'invitationId', 128)
+        && isValidId(data.secretaryUid)
+        && isOptString(data, 'secretaryName', 120)
+        && isValidId(data.actorUid)
+        && isOptString(data, 'actorName', 120)
+        && data.actorRole in ['employer', 'secretary']
+        && isReqString(data, 'action', 2, 120)
+        && isReqString(data, 'details', 1, 600)
+        && data.createdAt is timestamp;
+    }
+
+    match /secretary_invitations/{invitationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.secretaryUid == request.auth.uid
+        || resource.data.employerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(invitationId)
+        && isValidSecretaryInvitation(incoming(), invitationId)
+        && incoming().employerUid == request.auth.uid
+        && incoming().invitedByUid == request.auth.uid
+        && incoming().status == 'Pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(invitationId)
+        && isValidSecretaryInvitation(incoming(), invitationId)
+        && incoming().invitationId == existing().invitationId
+        && incoming().employerUid == existing().employerUid
+        && incoming().employerType == existing().employerType
+        && incoming().secretaryUid == existing().secretaryUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().status == 'Pending'
+            && existing().employerUid == request.auth.uid
+            && incoming().status == 'Revoked'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'revokedAt', 'updatedAt'])
+          )
+          || (
+            existing().status == 'Pending'
+            && existing().secretaryUid == request.auth.uid
+            && incoming().status in ['Accepted', 'Rejected']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'respondedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /secretary_employments/{employmentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.secretaryUid == request.auth.uid
+        || resource.data.employerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(employmentId)
+        && isValidSecretaryEmployment(incoming(), employmentId)
+        && incoming().secretaryUid == request.auth.uid
+        && incoming().status == 'Active'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/secretary_invitations/$(incoming().invitationId))
+        && get(/databases/$(database)/documents/secretary_invitations/$(incoming().invitationId)).data.secretaryUid == request.auth.uid
+        && get(/databases/$(database)/documents/secretary_invitations/$(incoming().invitationId)).data.employerUid == incoming().employerUid
+        && get(/databases/$(database)/documents/secretary_invitations/$(incoming().invitationId)).data.status in ['Pending', 'Accepted']
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(employmentId)
+        && isValidSecretaryEmployment(incoming(), employmentId)
+        && incoming().employmentId == existing().employmentId
+        && incoming().invitationId == existing().invitationId
+        && incoming().employerUid == existing().employerUid
+        && incoming().employerType == existing().employerType
+        && incoming().secretaryUid == existing().secretaryUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().status != 'Terminated'
+        && (
+          isAdmin()
+          || (
+            existing().employerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'permissions', 'status', 'suspendedAt', 'terminatedAt', 'statusReason', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /secretary_tasks/{taskId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.secretaryUid == request.auth.uid
+        || resource.data.employerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(taskId)
+        && isValidSecretaryTask(incoming(), taskId)
+        && incoming().employerUid == request.auth.uid
+        && incoming().createdByUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(taskId)
+        && isValidSecretaryTask(incoming(), taskId)
+        && incoming().taskId == existing().taskId
+        && incoming().employmentId == existing().employmentId
+        && incoming().employerUid == existing().employerUid
+        && incoming().secretaryUid == existing().secretaryUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || existing().employerUid == request.auth.uid
+          || (
+            existing().secretaryUid == request.auth.uid
+            && exists(/databases/$(database)/documents/secretary_employments/$(existing().employmentId))
+            && get(/databases/$(database)/documents/secretary_employments/$(existing().employmentId)).data.status == 'Active'
+            && get(/databases/$(database)/documents/secretary_employments/$(existing().employmentId)).data.secretaryUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /secretary_notifications/{notificationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.secretaryUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidSecretaryNotification(incoming(), notificationId)
+        && incoming().createdAt == request.time
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidSecretaryNotification(incoming(), notificationId)
+        && (
+          isAdmin()
+          || (
+            existing().secretaryUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /secretary_activity_logs/{logId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.secretaryUid == request.auth.uid
+        || resource.data.employerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(logId)
+        && isValidSecretaryActivityLog(incoming(), logId)
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time
+      );
+      allow update, delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // MEDORA PHARMACY & MEDORA WHOLESALER Isolation & RBAC Rules
+    // -------------------------------------------------------------------------
+    function isApprovedPharmacyOwner(pharmacyUid) {
+      return isVerifiedUser()
+        && isValidId(pharmacyUid)
+        && request.auth.uid == pharmacyUid
+        && exists(/databases/$(database)/documents/pharmacy_profiles/$(pharmacyUid))
+        && get(/databases/$(database)/documents/pharmacy_profiles/$(pharmacyUid)).data.status == 'Approved';
+    }
+
+    function isApprovedWholesalerOwner(wholesalerUid) {
+      return isVerifiedUser()
+        && isValidId(wholesalerUid)
+        && request.auth.uid == wholesalerUid
+        && exists(/databases/$(database)/documents/wholesaler_profiles/$(wholesalerUid))
+        && get(/databases/$(database)/documents/wholesaler_profiles/$(wholesalerUid)).data.status == 'Approved';
+    }
+
+    match /medora_medicines/{medicineId} {
+      allow get, list: if isVerifiedUser();
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(medicineId)
+        && (
+          isApprovedPharmacyOwner(request.auth.uid)
+          || isApprovedWholesalerOwner(request.auth.uid)
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_products/{productId} {
+      allow get, list: if isAdmin()
+        || (resource.data.isActive == true && (!('isPublishedToPatients' in resource.data) || resource.data.isPublishedToPatients == true))
+        || (isVerifiedUser() && resource.data.pharmacyUid == request.auth.uid)
+        || (isVerifiedUser() && isApprovedDoctorOwner(request.auth.uid) && resource.data.isActive == true);
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(productId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_batches/{batchId} {
+      allow get, list: if isAdmin()
+        || (resource.data.isExpired == false && resource.data.availableQty > 0)
+        || (isVerifiedUser() && resource.data.pharmacyUid == request.auth.uid);
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(batchId)
+        && (
+          isApprovedPharmacyOwner(incoming().pharmacyUid)
+          || (
+            isVerifiedUser()
+            && existing() != null
+            && incoming().pharmacyUid == existing().pharmacyUid
+            && incoming().productId == existing().productId
+            && incoming().availableQty <= existing().availableQty
+          )
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_inventory_movements/{movementId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(movementId)
+        && isValidId(incoming().pharmacyUid)
+        && (isApprovedPharmacyOwner(incoming().pharmacyUid) || incoming().actorUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /pharmacy_orders/{orderId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && (incoming().patientUid == request.auth.uid || isApprovedPharmacyOwner(incoming().pharmacyUid))
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && existing() != null
+        && (
+          isApprovedPharmacyOwner(existing().pharmacyUid)
+          || existing().patientUid == request.auth.uid
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_doctor_orders/{orderId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && isApprovedDoctorOwner(incoming().doctorUid)
+        && incoming().orderId == orderId
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && existing() != null
+        && (
+          isApprovedPharmacyOwner(existing().pharmacyUid)
+          || isApprovedDoctorOwner(existing().doctorUid)
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_credit_policies/{policyId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(policyId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_prescription_reviews/{reviewId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(reviewId)
+        && (isApprovedPharmacyOwner(incoming().pharmacyUid) || isApprovedDoctorOwner(incoming().doctorUid))
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_dispensations/{dispensationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(dispensationId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /pharmacy_invoices/{invoiceId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(invoiceId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_payments/{paymentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(paymentId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /pharmacy_deliveries/{deliveryId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(deliveryId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_returns/{returnId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.patientUid == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(returnId)
+        && (isApprovedPharmacyOwner(incoming().pharmacyUid) || incoming().patientUid == request.auth.uid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_staff/{staffId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.uid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(staffId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_communications/{messageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+        || resource.data.senderUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && (isApprovedPharmacyOwner(incoming().pharmacyUid) || incoming().senderUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /pharmacy_notifications/{notificationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidId(incoming().pharmacyUid)
+        && incoming().isRead == false
+        && isReqString(incoming(), 'title', 1, 200)
+        && isReqString(incoming(), 'body', 1, 600)
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && (
+          isAdmin()
+          || (
+            existing().pharmacyUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /pharmacy_special_offers/{offerId} {
+      allow get, list: if isAdmin()
+        || (isVerifiedUser() && resource.data.pharmacyUid == request.auth.uid)
+        || (resource.data.approvalStatus == 'approved' && resource.data.isActive == true);
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(offerId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow delete: if false;
+    }
+
+    match /pharmacy_campaign_requests/{requestId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(requestId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /pharmacy_audit_logs/{logId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(logId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /wholesaler_products/{productId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || (
+          resource.data.isActive == true
+          && exists(/databases/$(database)/documents/pharmacy_profiles/$(request.auth.uid))
+          && get(/databases/$(database)/documents/pharmacy_profiles/$(request.auth.uid)).data.status == 'Approved'
+        )
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(productId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_batches/{batchId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || (
+          resource.data.isExpired == false
+          && resource.data.availableQty > 0
+          && exists(/databases/$(database)/documents/pharmacy_profiles/$(request.auth.uid))
+        )
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(batchId)
+        && (
+          isApprovedWholesalerOwner(incoming().wholesalerUid)
+          || (
+            isApprovedPharmacyOwner(request.auth.uid)
+            && existing() != null
+            && incoming().wholesalerUid == existing().wholesalerUid
+            && incoming().productId == existing().productId
+            && incoming().availableQty <= existing().availableQty
+          )
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_inventory_movements/{movementId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(movementId)
+        && (isApprovedWholesalerOwner(incoming().wholesalerUid) || incoming().actorUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /wholesaler_credit_policies/{policyId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(policyId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_supply_orders/{orderId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && isApprovedPharmacyOwner(incoming().pharmacyUid)
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(orderId)
+        && existing() != null
+        && (
+          isApprovedWholesalerOwner(existing().wholesalerUid)
+          || isApprovedPharmacyOwner(existing().pharmacyUid)
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_shipments/{shipmentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(shipmentId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_suppliers/{supplierId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(supplierId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_purchase_orders/{poId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(poId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_invoices/{invoiceId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(invoiceId)
+        && (isApprovedWholesalerOwner(incoming().wholesalerUid) || isApprovedPharmacyOwner(incoming().pharmacyUid))
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_payments/{paymentId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(paymentId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /wholesaler_returns/{returnId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.pharmacyUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(returnId)
+        && (isApprovedWholesalerOwner(incoming().wholesalerUid) || isApprovedPharmacyOwner(incoming().pharmacyUid))
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_staff/{staffId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.uid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(staffId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow delete: if false;
+    }
+
+    match /wholesaler_communications/{messageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+        || resource.data.senderUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && (isApprovedWholesalerOwner(incoming().wholesalerUid) || incoming().senderUid == request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /wholesaler_notifications/{notificationId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidId(incoming().wholesalerUid)
+        && incoming().isRead == false
+        && isReqString(incoming(), 'title', 1, 200)
+        && isReqString(incoming(), 'body', 1, 600)
+      );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && (
+          isAdmin()
+          || (
+            existing().wholesalerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /wholesaler_audit_logs/{logId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.wholesalerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(logId)
+        && isApprovedWholesalerOwner(incoming().wholesalerUid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /bulk_import_jobs/{jobId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.ownerUid == request.auth.uid
+      );
+      allow create, update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(jobId)
+        && incoming().ownerUid == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // UNIFIED 3-PARTY COMMERCE RECEIPTS, MULTI-PARTY MESSAGING & OPS LOGS
+    // -------------------------------------------------------------------------
+    function isValidMedoraReceipt(data, receiptId) {
+      return data.keys().hasAll([
+          'receiptId', 'receiptNumber', 'transactionType', 'orderId', 'orderNumber',
+          'sellerUid', 'sellerRole', 'sellerName', 'buyerUid', 'buyerRole', 'buyerName',
+          'items', 'totalAmountIqd', 'paymentMethod', 'paymentStatus', 'fulfillmentType',
+          'status', 'issuedAt', 'completedAt'
+        ])
+        && isValidId(receiptId)
+        && data.receiptId == receiptId
+        && isReqString(data, 'receiptNumber', 6, 64)
+        && data.transactionType in ['wholesaler_to_pharmacy', 'pharmacy_to_doctor', 'pharmacy_to_patient']
+        && isValidId(data.orderId)
+        && isReqString(data, 'orderNumber', 3, 64)
+        && isValidId(data.sellerUid)
+        && data.sellerRole in ['wholesaler', 'pharmacy']
+        && isReqString(data, 'sellerName', 1, 160)
+        && isValidId(data.buyerUid)
+        && data.buyerRole in ['pharmacy', 'doctor', 'patient']
+        && isReqString(data, 'buyerName', 1, 160)
+        && data.items is list
+        && data.items.size() >= 1
+        && data.items.size() <= 200
+        && data.totalAmountIqd is number
+        && data.totalAmountIqd >= 0
+        && data.paymentMethod in ['direct', 'credit_account', 'cash_on_delivery', 'cash_on_pickup']
+        && data.paymentStatus in ['paid', 'partial', 'credit_open']
+        && data.fulfillmentType in ['seller_delivery', 'buyer_pickup']
+        && data.status in ['active', 'amended', 'voided']
+        && isReqString(data, 'issuedAt', 8, 40)
+        && isReqString(data, 'completedAt', 8, 40);
+    }
+
+    match /medora_receipts/{receiptId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.sellerUid == request.auth.uid
+        || resource.data.buyerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidMedoraReceipt(incoming(), receiptId)
+        && (incoming().sellerUid == request.auth.uid || incoming().buyerUid == request.auth.uid)
+        && incoming().status == 'active'
+      );
+      allow update: if isVerifiedUser()
+        && isValidMedoraReceipt(incoming(), receiptId)
+        && incoming().receiptId == existing().receiptId
+        && incoming().orderId == existing().orderId
+        && incoming().sellerUid == existing().sellerUid
+        && incoming().buyerUid == existing().buyerUid
+        && (
+          isAdmin()
+          || (
+            (existing().sellerUid == request.auth.uid || existing().buyerUid == request.auth.uid)
+            && incoming().status == existing().status
+            && incoming().totalAmountIqd == existing().totalAmountIqd
+            && incoming().diff(existing()).affectedKeys().hasOnly(['reprintCount', 'lastPrintedAt', 'auditHistory', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /medora_receipt_events/{eventId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || resource.data.sellerUid == request.auth.uid
+        || resource.data.buyerUid == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(eventId)
+        && incoming().eventId == eventId
+        && incoming().actorUid == request.auth.uid
+      );
+      allow update, delete: if false;
+    }
+
+    match /medora_threads/{threadId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || request.auth.uid in resource.data.participantUids
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(threadId)
+        && incoming().threadId == threadId
+        && incoming().participantUids is list
+        && incoming().participantUids.size() >= 2
+        && incoming().participantUids.size() <= 4
+        && request.auth.uid in incoming().participantUids
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(threadId)
+        && existing() != null
+        && request.auth.uid in existing().participantUids
+        && incoming().participantUids == existing().participantUids
+      );
+      allow delete: if false;
+    }
+
+    match /medora_thread_messages/{messageId} {
+      allow get, list: if isVerifiedUser() && (
+        isAdmin()
+        || request.auth.uid in resource.data.participantUids
+      );
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && incoming().messageId == messageId
+        && incoming().senderUid == request.auth.uid
+        && incoming().participantUids is list
+        && request.auth.uid in incoming().participantUids
+      );
+      allow update: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(messageId)
+        && existing() != null
+        && request.auth.uid in existing().participantUids
+        && incoming().diff(existing()).affectedKeys().hasOnly(['readByUids', 'readAtByUid'])
+      );
+      allow delete: if false;
+    }
+
+    match /medora_operational_errors/{errorId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() || (
+        isVerifiedUser()
+        && isValidId(errorId)
+        && incoming().errorId == errorId
+      );
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /medora_counters/{counterId} {
+      allow get: if isVerifiedUser();
+      allow list: if isAdmin();
+      allow create, update: if isVerifiedUser()
+        && isValidId(counterId)
+        && incoming().counterId == counterId
+        && incoming().seq is number
+        && incoming().seq >= 1;
+      allow delete: if false;
+    }
+
+  }
+}

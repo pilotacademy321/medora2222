@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Global safety net: block all public or unspecified Storage paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isVerifiedUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function isSuperAdmin() {
+      return isVerifiedUser()
+        && ('email' in request.auth.token)
+        && (request.auth.token.email is string)
+        && request.auth.token.email.lower() == 'aqbs250@gmail.com';
+    }
+
+    function isValidFolder(folder) {
+      return folder in [
+        'avatars',
+        'doctor_docs',
+        'lab_docs',
+        'pharmacy_docs',
+        'pharmacy_media',
+        'pharmacy_imports',
+        'wholesaler_docs',
+        'wholesaler_media',
+        'wholesaler_imports',
+        'doctor_banners',
+        'clinic_photos',
+        'patient_records',
+        'diagnostic_results',
+        'lab_results',
+        'lab_files',
+        'message_files',
+        'admin_ads'
+      ];
+    }
+
+    function isAllowedImage() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isAllowedMedicalDoc() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)')
+        || request.resource.contentType == 'application/pdf';
+    }
+
+    function isAllowedBulkImportFile() {
+      return request.resource.contentType in [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'text/csv',
+        'text/plain',
+        'application/csv',
+        'application/json',
+        'application/pdf'
+      ];
+    }
+
+    // Strict per-user upload isolation:
+    // - Promotional banners, clinic photos, and platform ads are readable for patient-facing views,
+    //   but writable/deletable strictly by the verified owner or Super Admin.
+    // - All patient records, diagnostic results, message attachments, and verification documents
+    //   remain strictly private to the verified owner or Super Admin (never public).
+    match /medora_uploads/{uid}/{folder}/{fileName} {
+      allow get: if isValidFolder(folder) && (
+        folder == 'doctor_banners'
+        || folder == 'clinic_photos'
+        || folder == 'admin_ads'
+        || folder == 'pharmacy_media'
+        || (isVerifiedUser() && (request.auth.uid == uid || isSuperAdmin()))
+      );
+
+      allow list: if isSuperAdmin();
+
+      allow create, update: if isVerifiedUser()
+        && request.auth.uid == uid
+        && isValidFolder(folder)
+        && request.resource != null
+        && (
+          (folder == 'avatars' && isAllowedImage() && request.resource.size <= 2 * 1024 * 1024)
+          || (folder == 'clinic_photos' && isAllowedImage() && request.resource.size <= 5 * 1024 * 1024)
+          || (folder in ['doctor_banners', 'admin_ads'] && isSuperAdmin() && isAllowedImage() && request.resource.size <= 5 * 1024 * 1024)
+          || (folder in ['doctor_docs', 'lab_docs', 'pharmacy_docs', 'wholesaler_docs'] && isAllowedMedicalDoc() && request.resource.size <= 5 * 1024 * 1024)
+          || (folder in ['pharmacy_imports', 'wholesaler_imports'] && isAllowedBulkImportFile() && request.resource.size <= 10 * 1024 * 1024)
+          || (folder in ['patient_records', 'diagnostic_results', 'lab_results', 'lab_files', 'pharmacy_media', 'wholesaler_media', 'message_files'] && isAllowedMedicalDoc() && request.resource.size <= 10 * 1024 * 1024)
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidFolder(folder)
+        && (request.auth.uid == uid || isSuperAdmin());
+    }
+  }
+}

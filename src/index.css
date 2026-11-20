@@ -1,0 +1,226 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --medora-obsidian: #030712;
+    --medora-navy-deep: #061028;
+    --medora-royal: #0c3585;
+    --medora-gold: #d9a43b;
+    --medora-gold-bright: #f4d378;
+    --font-arabic: "IBM Plex Sans Arabic", system-ui, -apple-system, sans-serif;
+    --font-latin: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  }
+
+  html,
+  body {
+    font-family: var(--font-arabic);
+    font-size: 18px;
+    overflow-x: hidden;
+  }
+}
+
+.font-latin {
+  font-family: var(--font-latin);
+}
+
+.medora-logo-rim {
+  filter: drop-shadow(0 0 1.4px rgba(196, 224, 255, 0.58))
+    drop-shadow(0 0 22px rgba(24, 90, 219, 0.28));
+}
+
+.medora-logo-rim-subtle {
+  filter: drop-shadow(0 0 1px rgba(196, 224, 255, 0.45))
+    drop-shadow(0 0 14px rgba(24, 90, 219, 0.22));
+}
+
+.dark .medora-logo-adaptive {
+  filter: drop-shadow(0 0 1.2px rgba(196, 224, 255, 0.5))
+    drop-shadow(0 0 16px rgba(24, 90, 219, 0.24));
+}
+
+html:not(.dark) .medora-logo-adaptive {
+  filter: drop-shadow(0 6px 18px rgba(10, 42, 117, 0.12));
+}
+
+.medora-gold-button {
+  background: linear-gradient(
+    135deg,
+    #b68023 0%,
+    #e0b351 48%,
+    #c68f2c 100%
+  );
+  box-shadow:
+    0 12px 32px -10px rgba(217, 164, 59, 0.48),
+    inset 0 1px 0 rgba(255, 244, 214, 0.55);
+}
+
+.medora-gold-button:hover {
+  background: linear-gradient(
+    135deg,
+    #c58d2b 0%,
+    #ecc264 50%,
+    #d49b34 100%
+  );
+  box-shadow:
+    0 16px 36px -8px rgba(217, 164, 59, 0.62),
+    inset 0 1px 0 rgba(255, 248, 228, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.medora-printing-active > #root {
+    display: none !important;
+  }
+
+  #medora-print-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .medora-no-print {
+    display: none !important;
+  }
+
+  .medora-print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .medora-print-preview-backdrop,
+  .medora-print-preview-frame,
+  .medora-print-preview-body {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  [data-pdf-block] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #medora-print-portal[data-print-format="thermal_80"] .medora-print-sheet {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 3mm !important;
+    font-size: 11px !important;
+  }
+
+  #medora-print-portal[data-print-format="thermal_58"] .medora-print-sheet {
+    width: 58mm !important;
+    max-width: 58mm !important;
+    padding: 2mm !important;
+    font-size: 10px !important;
+  }
+}
+
+#medora-print-portal {
+  display: none;
+}
+
+#medora-print-portal.medora-print-preview-visible {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.medora-print-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.medora-print-preview-frame {
+  width: 100%;
+  max-width: 860px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.55);
+  margin: auto 0;
+}
+
+.medora-print-preview-body {
+  max-height: calc(100dvh - 110px);
+  overflow-y: auto;
+}
+
+#medora-print-portal[data-print-format="thermal_80"] .medora-print-preview-body .medora-print-sheet {
+  width: 302px !important;
+  max-width: 302px !important;
+  margin: 0 auto !important;
+  padding: 12px !important;
+  border: 1px dashed #94a3b8 !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+}
+
+#medora-print-portal[data-print-format="thermal_58"] .medora-print-preview-body .medora-print-sheet {
+  width: 220px !important;
+  max-width: 220px !important;
+  margin: 0 auto !important;
+  padding: 8px !important;
+  border: 1px dashed #94a3b8 !important;
+  border-radius: 8px !important;
+  font-size: 10px !important;
+}
+
+#medora-print-portal[data-print-format^="thermal_"] .medora-print-sheet table {
+  font-size: 10px !important;
+}
+
+#medora-print-portal[data-print-format^="thermal_"] .medora-print-sheet h1 {
+  font-size: 14px !important;
+}
+
+#medora-print-portal[data-print-format^="thermal_"] .medora-print-sheet [style*="grid-template-columns"] {
+  grid-template-columns: 1fr !important;
+}
+

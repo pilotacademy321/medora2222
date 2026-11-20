@@ -1,0 +1,6 @@
+{
+  "name": "MEDORA",
+  "description": "الواجهة الافتتاحية الرسمية وبوابة الدخول لمنصة MEDORA الطبية",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

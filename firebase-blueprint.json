@@ -1,0 +1,1469 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Primary MEDORA user record keyed by Firebase Auth UID, storing safe Google identity metadata and shared personal profile fields.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 254 },
+        "googleName": { "type": "string", "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "accountStatus": {
+          "type": "string",
+          "enum": ["pending_profile", "profile_completed", "pending_review", "active", "restricted", "suspended"]
+        },
+        "selectedPortal": {
+          "type": "string",
+          "enum": ["none", "patient", "doctor", "lab", "secretary", "pharmacy", "wholesaler"]
+        },
+        "registrationCompleted": { "type": "boolean" },
+        "personalProfileCompleted": { "type": "boolean" },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "dateOfBirth": { "type": "string", "maxLength": 20 },
+        "age": { "type": "number" },
+        "gender": { "type": "string", "enum": ["male", "female", "unspecified"] },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 240 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "phoneVerified": { "type": "boolean" },
+        "phoneVerifiedAt": { "type": "string", "maxLength": 64 },
+        "avatarUrl": { "type": "string", "maxLength": 1000 },
+        "avatarPath": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "googleName", "accountStatus", "selectedPortal", "registrationCompleted", "personalProfileCompleted", "createdAt", "lastLoginAt", "updatedAt"]
+    },
+    "PatientProfile": {
+      "title": "PatientProfile",
+      "description": "Patient portal profile activated according to MEDORA platform rules.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "dateOfBirth": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "governorate": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "district": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "address": { "type": "string", "minLength": 2, "maxLength": 240 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "phoneVerified": { "type": "boolean" },
+        "avatarUrl": { "type": "string", "maxLength": 1000 },
+        "avatarPath": { "type": "string", "maxLength": 500 },
+        "emergencyContactName": { "type": "string", "maxLength": 120 },
+        "emergencyContactPhone": { "type": "string", "maxLength": 32 },
+        "emergencyContactRelation": { "type": "string", "maxLength": 60 },
+        "acceptedPolicy": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "dateOfBirth", "gender", "governorate", "district", "address", "acceptedPolicy", "status", "createdAt", "updatedAt"]
+    },
+    "DoctorProfile": {
+      "title": "DoctorProfile",
+      "description": "Doctor portal registration profile awaiting administrative approval.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "dateOfBirth": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "avatarUrl": { "type": "string", "maxLength": 1000 },
+        "avatarPath": { "type": "string", "maxLength": 500 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "professionalPhone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 254 },
+        "degree": { "type": "string", "maxLength": 120 },
+        "university": { "type": "string", "maxLength": 160 },
+        "specialty": { "type": "string", "maxLength": 120 },
+        "subSpecialty": { "type": "string", "maxLength": 120 },
+        "experienceYears": { "type": "number" },
+        "languages": { "type": "array" },
+        "clinicName": { "type": "string", "maxLength": 160 },
+        "workAddress": { "type": "string", "maxLength": 240 },
+        "workDaysAndHours": { "type": "string", "maxLength": 240 },
+        "consultationDurationMinutes": { "type": "number" },
+        "consultationFee": { "type": "number" },
+        "hourlyAppointmentLimit": { "type": "number" },
+        "bookingConfirmationMode": { "type": "string", "enum": ["manual", "auto"] },
+        "licenseNumber": { "type": "string", "maxLength": 80 },
+        "licensingAuthority": { "type": "string", "maxLength": 120 },
+        "licenseExpiryDate": { "type": "string", "maxLength": 20 },
+        "verificationDocuments": { "type": "array" },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "professionalPhone", "email", "degree", "university", "specialty", "clinicName", "workAddress", "licenseNumber", "bookingConfirmationMode", "status", "createdAt", "updatedAt"]
+    },
+    "LabProfile": {
+      "title": "LabProfile",
+      "description": "Medical laboratory registration profile awaiting administrative approval.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managerFullName": { "type": "string", "maxLength": 120 },
+        "managerDateOfBirth": { "type": "string", "maxLength": 20 },
+        "managerGender": { "type": "string", "enum": ["male", "female"] },
+        "managerAvatarUrl": { "type": "string", "maxLength": 1000 },
+        "avatarPath": { "type": "string", "maxLength": 500 },
+        "professionalPhone": { "type": "string", "maxLength": 32 },
+        "labNameAr": { "type": "string", "maxLength": 160 },
+        "labNameEn": { "type": "string", "maxLength": 160 },
+        "directorName": { "type": "string", "maxLength": 120 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 240 },
+        "mapLocationUrl": { "type": "string", "maxLength": 500 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "licenseNumber": { "type": "string", "maxLength": 80 },
+        "licensingAuthority": { "type": "string", "maxLength": 120 },
+        "licenseDocuments": { "type": "array" },
+        "technicalDirectorName": { "type": "string", "maxLength": 120 },
+        "labServices": { "type": "array" },
+        "workDaysAndHours": { "type": "string", "maxLength": 240 },
+        "hourlyBookingLimit": { "type": "number" },
+        "bookingConfirmationMode": { "type": "string", "enum": ["manual", "auto"] },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "managerFullName", "professionalPhone", "labNameAr", "labNameEn", "directorName", "governorate", "district", "address", "licenseNumber", "licensingAuthority", "technicalDirectorName", "bookingConfirmationMode", "status", "createdAt", "updatedAt"]
+    },
+    "SecretaryProfile": {
+      "title": "SecretaryProfile",
+      "description": "Independent MEDORA Secretary portal profile capable of connecting with multiple approved employers (Doctors, Labs, Pharmacies) via two-way invitation consent.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "secretaryCode": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 254 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "dateOfBirth": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "avatarUrl": { "type": "string", "maxLength": 1000 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "educationQualification": { "type": "string", "maxLength": 160 },
+        "previousExperience": { "type": "string", "maxLength": 400 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "targetInstitutionName": { "type": "string", "maxLength": 160 },
+        "invitationCode": { "type": "string", "maxLength": 64 },
+        "permissionsGranted": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "phone", "educationQualification", "permissionsGranted", "status", "createdAt", "updatedAt"]
+    },
+    "RegistrationRequest": {
+      "title": "RegistrationRequest",
+      "description": "Trackable onboarding and portal registration request record.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "requestNumber": { "type": "string", "maxLength": 32, "pattern": "^MDR-[0-9]{8}-[A-Z0-9]{6}$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicantEmail": { "type": "string", "maxLength": 254 },
+        "applicantName": { "type": "string", "maxLength": 120 },
+        "portalType": { "type": "string", "enum": ["patient", "doctor", "lab", "secretary"] },
+        "profilePath": { "type": "string", "maxLength": 200 },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes"] },
+        "activationRule": { "type": "string", "enum": ["patient_instant", "admin_approval", "institution_approval"] },
+        "reviewReason": { "type": "string", "maxLength": 500 },
+        "reviewInstructions": { "type": "string", "maxLength": 800 },
+        "acceptedTerms": { "type": "boolean" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestId", "requestNumber", "uid", "applicantEmail", "applicantName", "portalType", "profilePath", "status", "activationRule", "acceptedTerms", "createdAt", "updatedAt"]
+    },
+    "Institution": {
+      "title": "Institution",
+      "description": "Independent medical institution entity (clinic or lab).",
+      "type": "object",
+      "properties": {
+        "institutionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["clinic", "lab"] },
+        "nameAr": { "type": "string", "maxLength": 160 },
+        "nameEn": { "type": "string", "maxLength": 160 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 240 },
+        "licenseNumber": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["pending_approval", "active", "suspended", "rejected"] },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "trial", "active", "expired"] },
+        "subscriptionPlan": { "type": "string", "maxLength": 80 },
+        "subscriptionExpiresAt": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["institutionId", "ownerUid", "type", "nameAr", "governorate", "district", "address", "licenseNumber", "status", "createdAt", "updatedAt"]
+    },
+    "InstitutionMember": {
+      "title": "InstitutionMember",
+      "description": "Relational link between a user and an institution, explicitly gating secretary permissions.",
+      "type": "object",
+      "properties": {
+        "memberId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "institutionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["owner", "secretary", "staff"] },
+        "status": { "type": "string", "enum": ["pending_approval", "active", "revoked"] },
+        "permissions": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["memberId", "institutionId", "uid", "role", "status", "permissions", "createdAt", "updatedAt"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Server-managed administrative role record granting Super Admin privileges.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 254 },
+        "role": { "type": "string", "enum": ["super_admin"] },
+        "active": { "type": "boolean" },
+        "grantedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "active", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and administrative audit trail.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorEmail": { "type": "string", "maxLength": 254 },
+        "action": { "type": "string", "maxLength": 120 },
+        "targetCollection": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logId", "actorUid", "actorEmail", "action", "targetCollection", "targetId", "details", "createdAt"]
+    },
+    "AdminMessage": {
+      "title": "AdminMessage",
+      "description": "Administrative messages and executive notifications managed strictly by Super Admin.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderName": { "type": "string", "maxLength": 120 },
+        "senderEmail": { "type": "string", "maxLength": 254 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "enum": ["system", "inquiry", "institution_notice", "compliance"] },
+        "status": { "type": "string", "enum": ["new", "read", "replied", "archived"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "senderName", "senderEmail", "subject", "body", "category", "status", "isRead", "createdAt", "updatedAt"]
+    },
+    "DoctorAppointment": {
+      "title": "DoctorAppointment",
+      "description": "Clinic appointment with slotKey lock reference and real booking lifecycle status.",
+      "type": "object",
+      "properties": {
+        "appointmentId": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "patientName": { "type": "string", "maxLength": 120 },
+        "patientPhone": { "type": "string", "maxLength": 32 },
+        "date": { "type": "string", "maxLength": 20 },
+        "time": { "type": "string", "maxLength": 10 },
+        "slotKey": { "type": "string", "maxLength": 180 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "checked_in", "completed", "cancelled", "rejected", "no_show"] },
+        "isWaitlist": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appointmentId", "doctorUid", "patientName", "patientPhone", "date", "time", "slotKey", "status", "isWaitlist"]
+    },
+    "DoctorPatientRecord": {
+      "title": "DoctorPatientRecord",
+      "description": "Clinic-scoped patient medical file.",
+      "type": "object",
+      "properties": {
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "fileNumber": { "type": "string", "maxLength": 32 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "totalVisits": { "type": "number" }
+      },
+      "required": ["patientRecordId", "fileNumber", "doctorUid", "fullName", "phone"]
+    },
+    "PrescriptionRecord": {
+      "title": "PrescriptionRecord",
+      "description": "Electronic medical prescription stored in the patient file.",
+      "type": "object",
+      "properties": {
+        "prescriptionId": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "medications": { "type": "array" },
+        "prescribedDate": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["prescriptionId", "doctorUid", "patientRecordId", "medications", "prescribedDate"]
+    },
+    "DiagnosticOrderRecord": {
+      "title": "DiagnosticOrderRecord",
+      "description": "Lab and imaging orders and results.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "orderType": { "type": "string", "enum": ["lab", "imaging"] },
+        "status": { "type": "string", "enum": ["ordered", "in_progress", "results_received", "reviewed"] }
+      },
+      "required": ["orderId", "doctorUid", "patientRecordId", "orderType", "status"]
+    },
+    "MedoraAd": {
+      "title": "MedoraAd",
+      "description": "Centralized Super Admin targeted promotional ad supporting portal audience targeting, analytics counters, and informational radiology partner cards.",
+      "type": "object",
+      "properties": {
+        "adId": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "enum": ["super_admin"] },
+        "entityType": { "type": "string", "enum": ["doctor", "lab", "pharmacy", "wholesaler", "radiology_info", "platform_service"] },
+        "entityUid": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "targetPortals": { "type": "array" },
+        "title": { "type": "string", "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 600 },
+        "imageUrl": { "type": "string" },
+        "storagePath": { "type": "string", "maxLength": 400 },
+        "storageMode": { "type": "string", "enum": ["firebase_storage", "firestore_asset"] },
+        "ctaLabel": { "type": "string", "maxLength": 60 },
+        "ctaLabelEn": { "type": "string", "maxLength": 60 },
+        "actionType": { "type": "string", "enum": ["open_directory", "open_portal_tab", "open_external_url", "info_only"] },
+        "destinationTarget": { "type": "string", "maxLength": 500 },
+        "badgeTextAr": { "type": "string", "maxLength": 60 },
+        "badgeTextEn": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["draft", "published", "paused", "expired"] },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "active": { "type": "boolean" },
+        "priority": { "type": "number" },
+        "impressionsCount": { "type": "number" },
+        "clicksCount": { "type": "number" }
+      },
+      "required": ["adId", "entityType", "entityUid", "imageUrl", "status", "active"]
+    },
+    "AdEvent": {
+      "title": "AdEvent",
+      "description": "Immutable impression and click event ledger for MEDORA targeted ads.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "maxLength": 128 },
+        "adId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "enum": ["impression", "click"] },
+        "portal": { "type": "string", "maxLength": 40 },
+        "actorUid": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["eventId", "adId", "eventType", "portal"]
+    },
+    "MedoraAdAsset": {
+      "title": "MedoraAdAsset",
+      "description": "Compressed 2:1 promotional ad image binary served via /api/ads/assets/:assetId.",
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "maxLength": 128 },
+        "contentType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] },
+        "dataBase64": { "type": "string" },
+        "size": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      },
+      "required": ["assetId", "contentType", "dataBase64", "size"]
+    },
+    "PatientFavorite": {
+      "title": "PatientFavorite",
+      "description": "Patient-scoped favorite doctor bookmark.",
+      "type": "object",
+      "properties": {
+        "favoriteId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["favoriteId", "patientUid", "doctorUid"]
+    },
+    "PatientMedicalFile": {
+      "title": "PatientMedicalFile",
+      "description": "Patient-uploaded medical PDF or diagnostic image.",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 160 },
+        "category": { "type": "string", "enum": ["visit", "lab", "imaging", "prescription", "other"] },
+        "documentDate": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["fileId", "patientUid", "title", "category", "documentDate"]
+    },
+    "MedicalRecordShare": {
+      "title": "MedicalRecordShare",
+      "description": "Explicit patient consent sharing personal medical file categories with a specific doctor.",
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "revoked": { "type": "boolean" }
+      },
+      "required": ["shareId", "patientUid", "doctorUid", "revoked"]
+    },
+    "FacilityBooking": {
+      "title": "FacilityBooking",
+      "description": "Patient booking request at an approved laboratory.",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string", "maxLength": 128 },
+        "facilityType": { "type": "string", "enum": ["lab"] },
+        "facilityUid": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "in_progress", "completed", "cancelled", "rejected"] },
+        "date": { "type": "string", "maxLength": 20 },
+        "time": { "type": "string", "maxLength": 10 }
+      },
+      "required": ["bookingId", "facilityType", "facilityUid", "patientUid", "status", "date", "time"]
+    },
+    "PatientNotification": {
+      "title": "PatientNotification",
+      "description": "Patient-scoped notification record.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["appointment", "message", "lab_result", "imaging_result", "reminder", "announcement"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["notificationId", "patientUid", "type", "title", "isRead"]
+    },
+    "DoctorNotification": {
+      "title": "DoctorNotification",
+      "description": "Doctor-owner scoped in-app notification record.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 80 },
+        "type": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 600 },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["notificationId", "doctorUid", "type", "title", "isRead"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Super Admin operational in-app notification record.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "maxLength": 128 },
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 80 },
+        "type": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 600 },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["notificationId", "adminUid", "type", "title", "isRead"]
+    },
+    "NotificationPreferences": {
+      "title": "NotificationPreferences",
+      "description": "Per-user notification channel preference and WhatsApp consent state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["patient", "doctor", "lab", "pharmacy", "wholesaler", "secretary", "super_admin"] },
+        "preferredChannel": { "type": "string", "enum": ["in_app", "whatsapp"] },
+        "whatsappConsent": { "type": "boolean" },
+        "locale": { "type": "string", "enum": ["ar", "en"] }
+      },
+      "required": ["uid", "role", "preferredChannel", "whatsappConsent"]
+    },
+    "DoctorReview": {
+      "title": "DoctorReview",
+      "description": "Moderated patient review tied to a completed appointment.",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "appointmentId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "rating": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+      },
+      "required": ["reviewId", "doctorUid", "appointmentId", "patientUid", "rating", "status"]
+    },
+    "PatientFeedback": {
+      "title": "PatientFeedback",
+      "description": "Patient complaint, technical issue, or suggestion managed by Super Admin.",
+      "type": "object",
+      "properties": {
+        "feedbackId": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["complaint", "note", "booking_issue", "technical", "suggestion"] },
+        "status": { "type": "string", "enum": ["new", "in_review", "resolved", "closed"] }
+      },
+      "required": ["feedbackId", "patientUid", "category", "status"]
+    },
+    "LabStaffMember": {
+      "title": "LabStaffMember",
+      "description": "Laboratory employee account with granular role-based LIMS permissions.",
+      "type": "object",
+      "properties": {
+        "staffId": { "type": "string", "maxLength": 128 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 254 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["active", "suspended", "revoked"] },
+        "permissions": { "type": "array" }
+      },
+      "required": ["staffId", "labUid", "email", "fullName", "status", "permissions"]
+    },
+    "LabPatientRecord": {
+      "title": "LabPatientRecord",
+      "description": "Tenant-isolated laboratory patient record without barcodes.",
+      "type": "object",
+      "properties": {
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "fileNumber": { "type": "string", "maxLength": 32 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["patientRecordId", "fileNumber", "labUid", "fullName", "phone"]
+    },
+    "LabTestCatalogItem": {
+      "title": "LabTestCatalogItem",
+      "description": "Laboratory-specific test catalog entry with pricing, reference ranges, and preparation instructions.",
+      "type": "object",
+      "properties": {
+        "testId": { "type": "string", "maxLength": 128 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 40 },
+        "nameAr": { "type": "string", "maxLength": 160 },
+        "nameEn": { "type": "string", "maxLength": 160 },
+        "priceIqd": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["testId", "labUid", "code", "nameAr", "nameEn", "priceIqd", "isActive"]
+    },
+    "LabOfferPackage": {
+      "title": "LabOfferPackage",
+      "description": "Promotional discount or multi-test package offered by an approved lab.",
+      "type": "object",
+      "properties": {
+        "offerId": { "type": "string", "maxLength": 128 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 160 },
+        "originalPriceIqd": { "type": "number" },
+        "offerPriceIqd": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["offerId", "labUid", "title", "originalPriceIqd", "offerPriceIqd", "isActive"]
+    },
+    "LabOrder": {
+      "title": "LabOrder",
+      "description": "Laboratory test order tracking lifecycle without barcodes.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "patientRecordId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["ordered", "sample_collected", "in_lab", "result_entered", "approved", "cancelled"] }
+      },
+      "required": ["orderId", "orderNumber", "labUid", "patientRecordId", "status"]
+    },
+    "LabResult": {
+      "title": "LabResult",
+      "description": "Laboratory diagnostic result with verification, approval lock, and documented amendment history.",
+      "type": "object",
+      "properties": {
+        "resultId": { "type": "string", "maxLength": 128 },
+        "reportNumber": { "type": "string", "maxLength": 40 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["draft", "pending_approval", "approved", "corrected"] }
+      },
+      "required": ["resultId", "reportNumber", "labUid", "orderId", "status"]
+    },
+    "LabInventoryItem": {
+      "title": "LabInventoryItem",
+      "description": "Laboratory reagent, kit, or consumable stock record with lot and expiry tracking.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string", "maxLength": 128 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 160 },
+        "quantity": { "type": "number" },
+        "minThreshold": { "type": "number" },
+        "expiryDate": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["itemId", "labUid", "name", "quantity", "minThreshold", "expiryDate"]
+    },
+    "LabReview": {
+      "title": "LabReview",
+      "description": "Patient rating, review, or complaint for an approved laboratory moderated by Super Admin.",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string", "maxLength": 128 },
+        "labUid": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "rating": { "type": "number" },
+        "status": { "type": "string", "enum": ["approved", "hidden", "flagged", "removed"] }
+      },
+      "required": ["reviewId", "labUid", "patientUid", "rating", "status"]
+    },
+    "HaneenKnowledgeSource": {
+      "title": "HaneenKnowledgeSource",
+      "description": "Approved educational medical knowledge source managed by MEDORA Super Admin.",
+      "type": "object",
+      "properties": {
+        "sourceId": { "type": "string" },
+        "code": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "authority": { "type": "string" },
+        "sourceUrl": { "type": "string" },
+        "publishedAt": { "type": "string" },
+        "lastReviewedAt": { "type": "string" },
+        "version": { "type": "string" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["sourceId", "titleAr", "authority", "sourceUrl", "version", "enabled"]
+    },
+    "HaneenConversation": {
+      "title": "HaneenConversation",
+      "description": "Patient-isolated HANEEN AI educational conversation with explicit consent flags.",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "patientUid": { "type": "string" },
+        "title": { "type": "string" },
+        "consentGiven": { "type": "boolean" }
+      },
+      "required": ["conversationId", "patientUid", "consentGiven"]
+    },
+    "SecretaryInvitation": {
+      "title": "SecretaryInvitation",
+      "description": "Two-way hiring invitation sent from an employer (doctor, lab, pharmacy) to a registered MEDORA Secretary.",
+      "type": "object",
+      "properties": {
+        "invitationId": { "type": "string", "maxLength": 128 },
+        "employerType": { "type": "string", "enum": ["doctor", "lab", "pharmacy"] },
+        "employerUid": { "type": "string", "maxLength": 128 },
+        "employerInstitutionId": { "type": "string", "maxLength": 128 },
+        "employerName": { "type": "string", "maxLength": 160 },
+        "invitedByUid": { "type": "string", "maxLength": 128 },
+        "secretaryUid": { "type": "string", "maxLength": 128 },
+        "secretaryEmail": { "type": "string", "maxLength": 254 },
+        "proposedPermissions": { "type": "array" },
+        "status": { "type": "string", "enum": ["Pending", "Accepted", "Rejected", "Expired", "Revoked"] },
+        "expiresAt": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["invitationId", "employerType", "employerUid", "employerName", "invitedByUid", "secretaryUid", "secretaryEmail", "proposedPermissions", "status", "expiresAt"]
+    },
+    "SecretaryEmployment": {
+      "title": "SecretaryEmployment",
+      "description": "Activated multi-employer employment relationship with granular entity-scoped permissions.",
+      "type": "object",
+      "properties": {
+        "employmentId": { "type": "string", "maxLength": 128 },
+        "invitationId": { "type": "string", "maxLength": 128 },
+        "employerType": { "type": "string", "enum": ["doctor", "lab", "pharmacy"] },
+        "employerUid": { "type": "string", "maxLength": 128 },
+        "employerInstitutionId": { "type": "string", "maxLength": 128 },
+        "employerName": { "type": "string", "maxLength": 160 },
+        "secretaryUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Active", "Suspended", "Terminated"] },
+        "permissions": { "type": "array" },
+        "assignedByUid": { "type": "string", "maxLength": 128 },
+        "acceptedAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["employmentId", "invitationId", "employerType", "employerUid", "employerName", "secretaryUid", "status", "permissions", "assignedByUid", "acceptedAt"]
+    },
+    "SecretaryTask": {
+      "title": "SecretaryTask",
+      "description": "Employer-scoped administrative task assigned to an actively linked secretary.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "maxLength": 128 },
+        "employmentId": { "type": "string", "maxLength": 128 },
+        "employerType": { "type": "string", "enum": ["doctor", "lab", "pharmacy"] },
+        "employerUid": { "type": "string", "maxLength": 128 },
+        "secretaryUid": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 180 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "status": { "type": "string", "enum": ["todo", "in_progress", "done"] }
+      },
+      "required": ["taskId", "employmentId", "employerType", "employerUid", "secretaryUid", "title", "priority", "status"]
+    },
+    "SecretaryNotification": {
+      "title": "SecretaryNotification",
+      "description": "Notifications sent exclusively to an independent Secretary account.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "maxLength": 128 },
+        "secretaryUid": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 60 },
+        "title": { "type": "string", "maxLength": 200 },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["notificationId", "secretaryUid", "type", "title", "isRead"]
+    },
+    "SecretaryActivityLog": {
+      "title": "SecretaryActivityLog",
+      "description": "Immutable hiring, consent, permission, and operational audit trail for secretary-employer relationships.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "maxLength": 128 },
+        "employerUid": { "type": "string", "maxLength": 128 },
+        "employerType": { "type": "string", "enum": ["doctor", "lab", "pharmacy"] },
+        "secretaryUid": { "type": "string", "maxLength": 128 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 120 },
+        "details": { "type": "string", "maxLength": 600 }
+      },
+      "required": ["logId", "employerUid", "employerType", "secretaryUid", "actorUid", "action", "details"]
+    },
+    "PharmacyProfile": {
+      "title": "PharmacyProfile",
+      "description": "Pharmacy onboarding, license verification, and delivery settings.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "pharmacyNameAr": { "type": "string", "maxLength": 160 },
+        "pharmacyNameEn": { "type": "string", "maxLength": 160 },
+        "ownerFullName": { "type": "string", "maxLength": 120 },
+        "responsiblePharmacistName": { "type": "string", "maxLength": 120 },
+        "pharmacistSyndicateNumber": { "type": "string", "maxLength": 80 },
+        "pharmacyLicenseNumber": { "type": "string", "maxLength": 80 },
+        "licensingAuthority": { "type": "string", "maxLength": 120 },
+        "professionalPhone": { "type": "string", "maxLength": 32 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 240 },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "logoPath": { "type": "string", "maxLength": 400 },
+        "coverImageUrl": { "type": "string", "maxLength": 1000 },
+        "coverImagePath": { "type": "string", "maxLength": 400 },
+        "taglineAr": { "type": "string", "maxLength": 200 },
+        "taglineEn": { "type": "string", "maxLength": 200 },
+        "aboutAr": { "type": "string", "maxLength": 1200 },
+        "aboutEn": { "type": "string", "maxLength": 1200 },
+        "publicSlug": { "type": "string", "maxLength": 120 },
+        "promotionalBannerTitleAr": { "type": "string", "maxLength": 200 },
+        "promotionalBannerTitleEn": { "type": "string", "maxLength": 200 },
+        "promotionalBannerBodyAr": { "type": "string", "maxLength": 600 },
+        "promotionalBannerBodyEn": { "type": "string", "maxLength": 600 },
+        "promotionalBannerImageUrl": { "type": "string", "maxLength": 1000 },
+        "promotionalBannerImagePath": { "type": "string", "maxLength": 400 },
+        "marketingApprovalStatus": { "type": "string", "enum": ["draft", "pending_review", "approved", "rejected"] },
+        "marketingReviewNote": { "type": "string", "maxLength": 400 },
+        "featuredStatus": { "type": "string", "enum": ["none", "requested", "approved", "rejected"] },
+        "status": { "type": "string", "enum": ["Draft", "Pending Approval", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes", "Suspended", "Deactivated"] }
+      },
+      "required": ["uid", "pharmacyNameAr", "responsiblePharmacistName", "pharmacyLicenseNumber", "status"]
+    },
+    "PharmacySpecialOffer": {
+      "title": "PharmacySpecialOffer",
+      "description": "Pharmacy promotional offer subject to Super Admin approval before public display.",
+      "type": "object",
+      "properties": {
+        "offerId": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "titleAr": { "type": "string", "maxLength": 160 },
+        "titleEn": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 600 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "discountPercent": { "type": "number" },
+        "validUntil": { "type": "string", "maxLength": 24 },
+        "approvalStatus": { "type": "string", "enum": ["pending_review", "approved", "rejected"] },
+        "reviewNote": { "type": "string", "maxLength": 400 },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["offerId", "pharmacyUid", "titleAr", "approvalStatus", "isActive"]
+    },
+    "PharmacyCampaignRequest": {
+      "title": "PharmacyCampaignRequest",
+      "description": "Pharmacy promotional campaign or featured placement request submitted to Super Admin.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "pharmacyName": { "type": "string", "maxLength": 180 },
+        "campaignTitle": { "type": "string", "maxLength": 180 },
+        "campaignType": { "type": "string", "enum": ["featured_pharmacy", "homepage_spotlight", "governorate_promo"] },
+        "targetGovernorate": { "type": "string", "maxLength": 80 },
+        "notes": { "type": "string", "maxLength": 800 },
+        "status": { "type": "string", "enum": ["Submitted", "Under Review", "Approved", "Rejected"] },
+        "adminNote": { "type": "string", "maxLength": 400 }
+      },
+      "required": ["requestId", "pharmacyUid", "campaignTitle", "campaignType", "status"]
+    },
+    "WholesalerProfile": {
+      "title": "WholesalerProfile",
+      "description": "Pharmaceutical wholesaler warehouse profile and licensing.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "institutionId": { "type": "string", "maxLength": 128 },
+        "wholesalerNameAr": { "type": "string", "maxLength": 160 },
+        "wholesalerNameEn": { "type": "string", "maxLength": 160 },
+        "ownerFullName": { "type": "string", "maxLength": 120 },
+        "legalEntityName": { "type": "string", "maxLength": 160 },
+        "warehouseLicenseNumber": { "type": "string", "maxLength": 80 },
+        "healthAuthorityLicenseNumber": { "type": "string", "maxLength": 80 },
+        "professionalPhone": { "type": "string", "maxLength": 32 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "warehouseAddress": { "type": "string", "maxLength": 240 },
+        "status": { "type": "string", "enum": ["Draft", "Pending Approval", "Submitted", "Under Review", "Approved", "Rejected", "Requires Changes", "Suspended", "Deactivated"] }
+      },
+      "required": ["uid", "wholesalerNameAr", "legalEntityName", "warehouseLicenseNumber", "status"]
+    },
+    "CanonicalMedicine": {
+      "title": "CanonicalMedicine",
+      "description": "Central MEDORA canonical medicine identity separated from facility pricing and stock.",
+      "type": "object",
+      "properties": {
+        "medicineId": { "type": "string", "maxLength": 128 },
+        "scientificName": { "type": "string", "maxLength": 160 },
+        "activeIngredient": { "type": "string", "maxLength": 160 },
+        "strength": { "type": "string", "maxLength": 60 },
+        "dosageForm": { "type": "string", "maxLength": 40 },
+        "packSize": { "type": "string", "maxLength": 60 },
+        "manufacturer": { "type": "string", "maxLength": 120 },
+        "country": { "type": "string", "maxLength": 80 },
+        "barcode": { "type": "string", "maxLength": 64 },
+        "requiresPrescription": { "type": "boolean" },
+        "controlledDrug": { "type": "boolean" }
+      },
+      "required": ["medicineId", "scientificName", "activeIngredient", "strength", "dosageForm", "packSize"]
+    },
+    "PharmacyProduct": {
+      "title": "PharmacyProduct",
+      "description": "Pharmacy-specific medicine product linked to a canonical medicineId.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "medicineId": { "type": "string", "maxLength": 128 },
+        "sellingPriceIqd": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "isPublishedToPatients": { "type": "boolean" }
+      },
+      "required": ["productId", "pharmacyUid", "medicineId", "sellingPriceIqd"]
+    },
+    "PharmacyBatch": {
+      "title": "PharmacyBatch",
+      "description": "Physical FEFO batch inventory record for a pharmacy product.",
+      "type": "object",
+      "properties": {
+        "batchId": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "batchNumber": { "type": "string", "maxLength": 80 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "availableQty": { "type": "number" },
+        "reservedQty": { "type": "number" }
+      },
+      "required": ["batchId", "pharmacyUid", "productId", "batchNumber", "expiryDate", "availableQty", "reservedQty"]
+    },
+    "PharmacyOrder": {
+      "title": "PharmacyOrder",
+      "description": "Online patient and doctor prescription pharmacy order with atomic FEFO batch allocations.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 60 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 40 },
+        "totalIqd": { "type": "number" }
+      },
+      "required": ["orderId", "orderNumber", "pharmacyUid", "status", "totalIqd"]
+    },
+    "WholesalerProduct": {
+      "title": "WholesalerProduct",
+      "description": "Wholesaler-specific medicine listing and wholesale pricing.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string", "maxLength": 128 },
+        "wholesalerUid": { "type": "string", "maxLength": 128 },
+        "medicineId": { "type": "string", "maxLength": 128 },
+        "wholesalePriceIqd": { "type": "number" }
+      },
+      "required": ["productId", "wholesalerUid", "medicineId", "wholesalePriceIqd"]
+    },
+    "WholesalerBatch": {
+      "title": "WholesalerBatch",
+      "description": "Wholesaler warehouse physical batch inventory.",
+      "type": "object",
+      "properties": {
+        "batchId": { "type": "string", "maxLength": 128 },
+        "wholesalerUid": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "batchNumber": { "type": "string", "maxLength": 80 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "availableQty": { "type": "number" },
+        "reservedQty": { "type": "number" }
+      },
+      "required": ["batchId", "wholesalerUid", "productId", "batchNumber", "expiryDate", "availableQty", "reservedQty"]
+    },
+    "WholesalerSupplyOrder": {
+      "title": "WholesalerSupplyOrder",
+      "description": "B2B pharmaceutical supply order from Pharmacy to Wholesaler.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 60 },
+        "wholesalerUid": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 40 },
+        "totalIqd": { "type": "number" }
+      },
+      "required": ["orderId", "orderNumber", "wholesalerUid", "pharmacyUid", "status", "totalIqd"]
+    },
+    "BulkImportJob": {
+      "title": "BulkImportJob",
+      "description": "Auditable bulk drug catalog and batch import job for pharmacies and wholesalers.",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string", "maxLength": 128 },
+        "portalType": { "type": "string", "enum": ["pharmacy", "wholesaler"] },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "fileName": { "type": "string", "maxLength": 160 },
+        "sourceType": { "type": "string", "enum": ["xlsx", "xls", "csv", "json", "pdf_draft"] },
+        "mode": { "type": "string", "enum": ["full_catalog_and_batches", "price_update_only", "quantity_batch_update_only"] },
+        "status": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["jobId", "portalType", "ownerUid", "fileName", "sourceType", "mode", "status"]
+    },
+    "PharmacyDoctorOrder": {
+      "title": "PharmacyDoctorOrder",
+      "description": "B2B clinical supply order between Doctor and Pharmacy with FEFO batch lock and receipt completion.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 60 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 40 },
+        "totalIqd": { "type": "number" }
+      },
+      "required": ["orderId", "orderNumber", "pharmacyUid", "doctorUid", "status", "totalIqd"]
+    },
+    "PharmacyCreditPolicy": {
+      "title": "PharmacyCreditPolicy",
+      "description": "Pharmacy-managed B2B credit limit and payment policy for linked Doctors.",
+      "type": "object",
+      "properties": {
+        "policyId": { "type": "string", "maxLength": 128 },
+        "pharmacyUid": { "type": "string", "maxLength": 128 },
+        "doctorUid": { "type": "string", "maxLength": 128 },
+        "creditEnabled": { "type": "boolean" },
+        "creditLimitIqd": { "type": "number" }
+      },
+      "required": ["policyId", "pharmacyUid", "doctorUid"]
+    },
+    "MedoraReceipt": {
+      "title": "MedoraReceipt",
+      "description": "Unified 3-party linked receipt visible simultaneously to Super Admin, Seller, and Buyer upon transaction completion.",
+      "type": "object",
+      "properties": {
+        "receiptId": { "type": "string", "maxLength": 128 },
+        "receiptNumber": { "type": "string", "maxLength": 60 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "transactionType": { "type": "string", "enum": ["wholesaler_to_pharmacy", "pharmacy_to_doctor", "pharmacy_to_patient"] },
+        "sellerUid": { "type": "string", "maxLength": 128 },
+        "buyerUid": { "type": "string", "maxLength": 128 },
+        "totalAmountIqd": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "amended", "voided"] }
+      },
+      "required": ["receiptId", "receiptNumber", "orderId", "transactionType", "sellerUid", "buyerUid", "totalAmountIqd", "status"]
+    },
+    "MedoraThread": {
+      "title": "MedoraThread",
+      "description": "Unified permission-enforced cross-portal communication thread.",
+      "type": "object",
+      "properties": {
+        "threadId": { "type": "string", "maxLength": 128 },
+        "threadType": { "type": "string", "maxLength": 60 },
+        "participantUids": { "type": "array" },
+        "status": { "type": "string", "enum": ["active", "archived", "closed"] }
+      },
+      "required": ["threadId", "threadType", "participantUids", "status"]
+    },
+    "MedoraThreadMessage": {
+      "title": "MedoraThreadMessage",
+      "description": "Message inside a unified MEDORA communication thread.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "maxLength": 128 },
+        "threadId": { "type": "string", "maxLength": 128 },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "body": { "type": "string", "maxLength": 2000 }
+      },
+      "required": ["messageId", "threadId", "senderUid", "body"]
+    },
+    "MedoraOperationalError": {
+      "title": "MedoraOperationalError",
+      "description": "Server-logged operational anomaly and error record for Super Admin oversight.",
+      "type": "object",
+      "properties": {
+        "errorId": { "type": "string", "maxLength": 128 },
+        "scope": { "type": "string", "maxLength": 80 },
+        "severity": { "type": "string", "enum": ["warning", "error", "critical"] },
+        "message": { "type": "string", "maxLength": 800 }
+      },
+      "required": ["errorId", "scope", "severity", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Primary user record and shared personal profile."
+    },
+    "/patient_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/PatientProfile" },
+      "description": "Patient portal profile."
+    },
+    "/doctor_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/DoctorProfile" },
+      "description": "Doctor portal registration profile."
+    },
+    "/lab_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/LabProfile" },
+      "description": "Medical laboratory registration profile."
+    },
+    "/secretary_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/SecretaryProfile" },
+      "description": "Secretary registration profile."
+    },
+    "/registration_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/RegistrationRequest" },
+      "description": "Onboarding and portal registration requests."
+    },
+    "/institutions/{institutionId}": {
+      "schema": { "$ref": "#/entities/Institution" },
+      "description": "Independent medical institutions."
+    },
+    "/institution_members/{memberId}": {
+      "schema": { "$ref": "#/entities/InstitutionMember" },
+      "description": "Institution membership and explicit role permissions."
+    },
+    "/admin_roles/{uid}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Super Admin authorization records."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable administrative and onboarding audit logs."
+    },
+    "/admin_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/AdminMessage" },
+      "description": "Administrative inbox messages and official notices."
+    },
+    "/doctor_public_cards/{doctorUid}": {
+      "schema": { "$ref": "#/entities/DoctorProfile" },
+      "description": "Publicly readable sanitized physician directory cards with promotional banner."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": { "$ref": "#/entities/DoctorAppointment" },
+      "description": "Clinic appointments and waiting list."
+    },
+    "/doctor_patients/{patientRecordId}": {
+      "schema": { "$ref": "#/entities/DoctorPatientRecord" },
+      "description": "Clinic-isolated patient medical files."
+    },
+    "/prescriptions/{prescriptionId}": {
+      "schema": { "$ref": "#/entities/PrescriptionRecord" },
+      "description": "Electronic medical prescriptions."
+    },
+    "/diagnostic_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/DiagnosticOrderRecord" },
+      "description": "Diagnostic lab & radiology orders and results."
+    },
+    "/medora_ads/{adId}": {
+      "schema": { "$ref": "#/entities/MedoraAd" },
+      "description": "Promotional healthcare advertisements curated exclusively by Super Admin."
+    },
+    "/medora_ad_assets/{assetId}": {
+      "schema": { "$ref": "#/entities/MedoraAdAsset" },
+      "description": "Compressed 2:1 ad banner assets managed exclusively by Super Admin."
+    },
+    "/patient_favorites/{favoriteId}": {
+      "schema": { "$ref": "#/entities/PatientFavorite" },
+      "description": "Patient favorite doctor bookmarks."
+    },
+    "/patient_medical_files/{fileId}": {
+      "schema": { "$ref": "#/entities/PatientMedicalFile" },
+      "description": "Patient-uploaded personal medical documents."
+    },
+    "/medical_record_shares/{shareId}": {
+      "schema": { "$ref": "#/entities/MedicalRecordShare" },
+      "description": "Patient consent records for sharing medical files with doctors."
+    },
+    "/lab_bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/FacilityBooking" },
+      "description": "Patient laboratory test bookings."
+    },
+    "/patient_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PatientNotification" },
+      "description": "Patient notifications and reminders."
+    },
+    "/doctor_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/DoctorNotification" },
+      "description": "Doctor-owner operational in-app notifications."
+    },
+    "/admin_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AdminNotification" },
+      "description": "Super Admin operational in-app notifications."
+    },
+    "/notification_preferences/{uid}": {
+      "schema": { "$ref": "#/entities/NotificationPreferences" },
+      "description": "Server-managed user notification channel preferences."
+    },
+    "/doctor_reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/DoctorReview" },
+      "description": "Moderated patient reviews on doctors."
+    },
+    "/patient_feedback/{feedbackId}": {
+      "schema": { "$ref": "#/entities/PatientFeedback" },
+      "description": "Patient complaints, suggestions, and technical reports."
+    },
+    "/medora_central_lab_tests/{centralTestId}": {
+      "schema": { "$ref": "#/entities/LabTestCatalogItem" },
+      "description": "Central MEDORA standardized medical lab test catalog."
+    },
+    "/lab_staff/{staffId}": {
+      "schema": { "$ref": "#/entities/LabStaffMember" },
+      "description": "Laboratory employee roles and granular permissions."
+    },
+    "/lab_patients/{patientRecordId}": {
+      "schema": { "$ref": "#/entities/LabPatientRecord" },
+      "description": "Multi-tenant isolated laboratory patient files."
+    },
+    "/lab_tests/{testId}": {
+      "schema": { "$ref": "#/entities/LabTestCatalogItem" },
+      "description": "Laboratory-owned test directory, pricing, and preparation guidelines."
+    },
+    "/lab_offers/{offerId}": {
+      "schema": { "$ref": "#/entities/LabOfferPackage" },
+      "description": "Laboratory promotional test discounts and bundles."
+    },
+    "/lab_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Laboratory test orders isolated per lab."
+    },
+    "/lab_samples/{sampleId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "In-lab sample collection and acceptance logs."
+    },
+    "/lab_home_collections/{requestId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Home sample phlebotomy collection dispatch requests."
+    },
+    "/lab_results/{resultId}": {
+      "schema": { "$ref": "#/entities/LabResult" },
+      "description": "Verified & approved lab reports with documented revision history."
+    },
+    "/lab_invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Laboratory billing invoices."
+    },
+    "/lab_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Laboratory payment receipts."
+    },
+    "/lab_inventory_items/{itemId}": {
+      "schema": { "$ref": "#/entities/LabInventoryItem" },
+      "description": "Laboratory reagent and consumable inventory with expiry tracking."
+    },
+    "/lab_test_recipes/{recipeId}": {
+      "schema": { "$ref": "#/entities/LabInventoryItem" },
+      "description": "Per-test reagent consumption recipes for atomic inventory deduction."
+    },
+    "/lab_stock_movements/{movementId}": {
+      "schema": { "$ref": "#/entities/LabInventoryItem" },
+      "description": "Immutable inventory deduction, purchase, manual adjustment, and reversal logs."
+    },
+    "/lab_suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/LabInventoryItem" },
+      "description": "Laboratory reagent and consumable suppliers."
+    },
+    "/lab_purchase_orders/{poId}": {
+      "schema": { "$ref": "#/entities/LabInventoryItem" },
+      "description": "Laboratory supplier purchase orders."
+    },
+    "/lab_reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/LabReview" },
+      "description": "Patient ratings and complaints for approved laboratories."
+    },
+    "/lab_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PatientNotification" },
+      "description": "Internal laboratory notifications."
+    },
+    "/lab_conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Secure threads between an approved laboratory and a patient."
+    },
+    "/lab_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/LabOrder" },
+      "description": "Messages inside laboratory-patient conversations."
+    },
+    "/lab_admin_messages/{threadMessageId}": {
+      "schema": { "$ref": "#/entities/AdminMessage" },
+      "description": "Direct compliance and support thread between laboratory and Super Admin."
+    },
+    "/lab_audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable laboratory LIMS audit trail."
+    },
+    "/haneen_knowledge_sources/{sourceId}": {
+      "schema": { "$ref": "#/entities/HaneenKnowledgeSource" },
+      "description": "Approved medical knowledge sources for HANEEN AI."
+    },
+    "/haneen_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/HaneenKnowledgeSource" },
+      "description": "Operational settings for HANEEN AI."
+    },
+    "/haneen_telemetry/{docId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Aggregate-only non-PII technical metrics for HANEEN AI."
+    },
+    "/haneen_conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/HaneenConversation" },
+      "description": "Patient-isolated HANEEN AI conversations."
+    },
+    "/haneen_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/HaneenConversation" },
+      "description": "Patient-isolated HANEEN AI messages."
+    },
+    "/secretary_invitations/{invitationId}": {
+      "schema": { "$ref": "#/entities/SecretaryInvitation" },
+      "description": "Hiring invitations sent from Doctor, Lab, or Pharmacy employers to MEDORA secretaries."
+    },
+    "/secretary_employments/{employmentId}": {
+      "schema": { "$ref": "#/entities/SecretaryEmployment" },
+      "description": "Activated employment relationships with entity-scoped granular permissions."
+    },
+    "/secretary_tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/SecretaryTask" },
+      "description": "Administrative tasks scoped strictly to one employment link."
+    },
+    "/secretary_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/SecretaryNotification" },
+      "description": "Notifications targeted to a MEDORA secretary account."
+    },
+    "/secretary_activity_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SecretaryActivityLog" },
+      "description": "Immutable employment and operational audit trail."
+    },
+    "/pharmacy_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/PharmacyProfile" },
+      "description": "Pharmacy portal registration and license verification profiles."
+    },
+    "/wholesaler_profiles/{uid}": {
+      "schema": { "$ref": "#/entities/WholesalerProfile" },
+      "description": "Pharmaceutical wholesaler registration and license verification profiles."
+    },
+    "/medora_medicines/{medicineId}": {
+      "schema": { "$ref": "#/entities/CanonicalMedicine" },
+      "description": "Central canonical medicine identity catalog."
+    },
+    "/pharmacy_products/{productId}": {
+      "schema": { "$ref": "#/entities/PharmacyProduct" },
+      "description": "Per-pharmacy medicine products and retail prices."
+    },
+    "/pharmacy_batches/{batchId}": {
+      "schema": { "$ref": "#/entities/PharmacyBatch" },
+      "description": "Per-pharmacy FEFO physical inventory batches."
+    },
+    "/pharmacy_inventory_movements/{movementId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable pharmacy inventory movement ledger."
+    },
+    "/pharmacy_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Online patient and doctor prescription pharmacy orders."
+    },
+    "/pharmacy_prescription_reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Pharmacist prescription verification and clarification logs."
+    },
+    "/pharmacy_dispensations/{dispensationId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Dispensed prescription audit log."
+    },
+    "/pharmacy_invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Pharmacy billing invoices."
+    },
+    "/pharmacy_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Pharmacy payment receipts."
+    },
+    "/pharmacy_deliveries/{deliveryId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Pharmacy local delivery assignments and completion proofs."
+    },
+    "/pharmacy_returns/{returnId}": {
+      "schema": { "$ref": "#/entities/PharmacyOrder" },
+      "description": "Pharmacy return and restock records."
+    },
+    "/pharmacy_staff/{staffId}": {
+      "schema": { "$ref": "#/entities/InstitutionMember" },
+      "description": "Pharmacy staff RBAC members."
+    },
+    "/pharmacy_communications/{messageId}": {
+      "schema": { "$ref": "#/entities/AdminMessage" },
+      "description": "Pharmacy communications across patients, doctors, wholesalers, and Super Admin."
+    },
+    "/pharmacy_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PatientNotification" },
+      "description": "Pharmacy operational in-app notifications."
+    },
+    "/pharmacy_audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable pharmacy audit trail."
+    },
+    "/pharmacy_special_offers/{offerId}": {
+      "schema": { "$ref": "#/entities/PharmacySpecialOffer" },
+      "description": "Pharmacy special offers gated by Super Admin approval."
+    },
+    "/pharmacy_campaign_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/PharmacyCampaignRequest" },
+      "description": "Pharmacy featured placement and promotional campaign requests to Super Admin."
+    },
+    "/wholesaler_products/{productId}": {
+      "schema": { "$ref": "#/entities/WholesalerProduct" },
+      "description": "Per-wholesaler medicine catalog and wholesale prices."
+    },
+    "/wholesaler_batches/{batchId}": {
+      "schema": { "$ref": "#/entities/WholesalerBatch" },
+      "description": "Per-wholesaler FEFO physical inventory batches."
+    },
+    "/wholesaler_inventory_movements/{movementId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable wholesaler inventory movement ledger."
+    },
+    "/wholesaler_credit_policies/{policyId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Opt-in pharmacy credit policies and custom price lists."
+    },
+    "/wholesaler_supply_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "B2B supply orders between Pharmacies and Wholesalers."
+    },
+    "/wholesaler_shipments/{shipmentId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Wholesaler dispatch and delivery records."
+    },
+    "/wholesaler_suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/WholesalerProduct" },
+      "description": "Wholesaler upstream suppliers and manufacturers."
+    },
+    "/wholesaler_purchase_orders/{poId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Wholesaler supplier purchase orders."
+    },
+    "/wholesaler_invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Wholesaler B2B invoices."
+    },
+    "/wholesaler_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Wholesaler payment settlements."
+    },
+    "/wholesaler_returns/{returnId}": {
+      "schema": { "$ref": "#/entities/WholesalerSupplyOrder" },
+      "description": "Wholesaler return & credit requests."
+    },
+    "/wholesaler_staff/{staffId}": {
+      "schema": { "$ref": "#/entities/InstitutionMember" },
+      "description": "Wholesaler staff RBAC members."
+    },
+    "/wholesaler_communications/{messageId}": {
+      "schema": { "$ref": "#/entities/AdminMessage" },
+      "description": "Wholesaler communications with pharmacies and Super Admin."
+    },
+    "/wholesaler_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PatientNotification" },
+      "description": "Wholesaler operational in-app notifications."
+    },
+    "/wholesaler_audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable wholesaler audit trail."
+    },
+    "/bulk_import_jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/BulkImportJob" },
+      "description": "Bulk medicine catalog and batch import job metadata and validation summary."
+    },
+    "/ad_events/{eventId}": {
+      "schema": { "$ref": "#/entities/AdEvent" },
+      "description": "Ad impression and click tracking ledger."
+    },
+    "/pharmacy_doctor_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PharmacyDoctorOrder" },
+      "description": "B2B orders from Doctors to Pharmacies."
+    },
+    "/pharmacy_credit_policies/{policyId}": {
+      "schema": { "$ref": "#/entities/PharmacyCreditPolicy" },
+      "description": "Pharmacy credit policies for linked Doctors."
+    },
+    "/medora_receipts/{receiptId}": {
+      "schema": { "$ref": "#/entities/MedoraReceipt" },
+      "description": "Unified 3-party linked receipts visible to Super Admin, Seller, and Buyer."
+    },
+    "/medora_receipt_events/{eventId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable receipt issuance, reprint, amendment, and void event trail."
+    },
+    "/medora_threads/{threadId}": {
+      "schema": { "$ref": "#/entities/MedoraThread" },
+      "description": "Cross-portal permission-enforced messaging threads."
+    },
+    "/medora_thread_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/MedoraThreadMessage" },
+      "description": "Cross-portal thread messages."
+    },
+    "/medora_operational_errors/{errorId}": {
+      "schema": { "$ref": "#/entities/MedoraOperationalError" },
+      "description": "Operational error records for Super Admin monitoring."
+    },
+    "/medora_counters/{counterId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Atomic sequential daily counters for MEDORA unified receipts."
+    }
+  }
+}
